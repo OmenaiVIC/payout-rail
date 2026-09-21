@@ -51,6 +51,8 @@ Express app for `@vercel/node` instead of calling `listen()`.
 | `BOS_DAILY_PAYOUT_CAP_USD` | | `10000` | Daily payout cap (USD) |
 | `BOS_MAX_PER_DISBURSEMENT_USD` | | `1000` | Per-disbursement cap (USD) |
 | `DEFAULT_USDCX_NGN_RATE` | | `1650` | Seed exchange rate when table is empty |
+| `BOS_API_TOKEN` | | — | Bearer token required for the disbursement API. Unset → all requests rejected unless the dev flag is on |
+| `BOS_ALLOW_UNAUTHENTICATED_DEV` | | — | `true` → skip token checks (dev escape hatch; fails closed otherwise) |
 | `SMTP_USER` / `SMTP_PASS` | | — | Nodemailer creds for alert emails |
 | `BOS_ALERT_EMAIL_RECIPIENTS` | | — | Comma-separated alert recipients |
 | `SLACK_BOS_WEBHOOK_URL` | | — | Slack webhook for bos_alerts |
@@ -86,8 +88,79 @@ as the human-in-the-loop escape hatch and a circuit breaker guarding the payout 
 ## Routes
 
 - `GET /health`, `GET /warmup`
+- `GET|POST /api/disbursements`, `GET|POST /api/disbursements/:id` — see [Disbursement API](#disbursement-api)
 - `GET|POST /api/bos/monitoring/*` — dashboard, workers, manual run, manual review (gated by `CRON_SECRET`)
-- `POST /api/bos/webhooks/yellowcard`, `POST /api/bos/webhooks/yellowcard/test` (non-production)
+- `POST /api/bos/webhooks/yellowcard`, `POST /api/bos/webhooks/yellowcard/test` — see [Webhooks](#webhooks)
+
+## Disbursement API
+
+All `/api/disbursements` routes require `Authorization: Bearer <BOS_API_TOKEN>`.
+With `BOS_API_TOKEN` unset, every request is rejected with `401` unless
+`BOS_ALLOW_UNAUTHENTICATED_DEV=true` (loud, non-production escape hatch). Tokens
+are compared in constant time.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/disbursements` | Create a disbursement (status `preflight_check`), runs safety gates first |
+| `GET` | `/api/disbursements/:id` | Fetch a disbursement with its `external_refs` and `audit_log` |
+| `POST` | `/api/disbursements/:id/advance` | Advance one state step (the same step workers run) |
+| `GET` | `/api/disbursements` | List disbursements (bounded; optional `status` / `source_reference` filters) |
+| `POST` | `/api/disbursements/:id/retry` | Retry a `failed` disbursement from its last good state (within retry budget) |
+| `POST` | `/api/disbursements/:id/recover` | Move a stuck disbursement to `manual_review` |
+
+Create body:
+
+```jsonc
+{
+  "source_reference": "campaign-001",
+  "amount_usd": 50,
+  "amount_usdcx": 50000000,          // USDCx base units (6 decimals) — 50 USDCx
+  "creator_address": "SP2J6ZY48...", // recipient Stacks address
+  "creator_btc_address": "bc1q...",  // BTC address for the xReserve release
+  "recipient_bank_account": "0123456789",
+  "recipient_bank_code": "044",
+  "ngn_recipient": { "account_number": "0123456789", "bank_code": "044" }
+}
+```
+
+Creation resolves the current `USDCx/NGN` rate from `exchange_rates`
+(`DEFAULT_USDCX_NGN_RATE` seeds it) and stores `exchange_rate` plus
+`amount_ngn_expected` (kobo, rounded) on the row. If no valid rate is on file,
+creation is **rejected** (fail closed) rather than inserting a row that can never
+pay out.
+
+Caveat: the operator/approval routes (`approve`, manual-review resolution) are
+**not** exposed yet — they depend on an actor model that is still undecided
+(see `docs/SPRINT_0_5_REPORT.md`). Two-person approval engages only at
+`amount_usd >= 1000`.
+
+## Webhooks
+
+- `POST /api/bos/webhooks/yellowcard` — Yellow Card payout callbacks. The HMAC is
+  verified over the **raw** body (`x-signature`, `x-yellowcard-signature`, or
+  `x-hub-signature-256`; `sha256=`/`hmac-sha256,` prefixes accepted) using
+  `YELLOW_CARD_WEBHOOK_SECRET`. Unsigned/invalid payloads are rejected with `401`
+  before any state is touched; when no secret is configured the endpoint fails
+  **closed** (reject, never trust). Duplicate valid deliveries are acknowledged
+  but do not double-advance, and each verified payload is recorded in the evidence
+  chain.
+- `POST /api/bos/webhooks/yellowcard/test` — manual webhook injection, gated by
+  the same `BOS_API_TOKEN` bearer token as the disbursement API.
+
+## Tests
+
+```bash
+npm test              # full suite (node --test, in-memory FakeDb — no Postgres needed)
+npm run test:unit     # unit + route tests
+npm run test:e2e      # mock full lifecycle (create → settled, and the failed-preflight path)
+npm run test:integration  # Postgres-gated (requires TEST_DATABASE_URL; skips otherwise)
+```
+
+The default suite runs against an in-repo `FakeDb` with mock Stacks/xReserve/
+Yellow Card adapters — zero infra, zero credentials. The only skip is the
+real-Postgres integration test, which runs when `TEST_DATABASE_URL` is set.
+The E2E proves orchestration completes in mock mode; it does not prove an
+external release is true (see `docs/SPRINT_0_5_REPORT.md`, GAP-08).
 
 ## Attribution
 
