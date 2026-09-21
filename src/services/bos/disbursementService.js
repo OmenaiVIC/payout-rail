@@ -8,6 +8,28 @@ import { randomUUID } from 'crypto';
 import { DisbursementState, TERMINAL_STATES } from './types.js';
 import { executeTransition, getValidNextStates } from './stateMachine.js';
 
+// USDCx has 6 decimal places; amount_usdcx is expressed in base units.
+const USDCX_DECIMALS = 6;
+const NGN_MINOR_UNITS_PER_NAIRA = 100;
+
+/**
+ * Convert a USDCx base-unit amount into the expected NGN payout in minor
+ * units (kobo) at a given USDCx/NGN rate.
+ *
+ * amount_ngn_kobo = round(amount_usdcx_base_units / 1e6 × rate × 100)
+ * This matches Yellow Card's `amount` convention (currency's smallest unit).
+ *
+ * @param {Object} p
+ * @param {number} p.amount_usdcx_base_units — USDCx amount in 6-dp base units
+ * @param {number} p.rate — USDCx/NGN rate (e.g. 1650 → 1 USDCx = 1650 NGN)
+ * @returns {number} expected NGN payout in kobo, rounded to the nearest integer
+ */
+export function computeAmountNgnExpected({ amount_usdcx_base_units, rate }) {
+  const usdcxAmount = Number(amount_usdcx_base_units) / 10 ** USDCX_DECIMALS;
+  const ngn = usdcxAmount * Number(rate);
+  return Math.round(ngn * NGN_MINOR_UNITS_PER_NAIRA);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Logging & DB helpers (passed via context, not imported directly)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +121,27 @@ export async function initiateDisbursement({
     throw err;
   }
 
+  // ── Resolve the USDCx/NGN rate at create time (fail closed) ─────────
+  // A disbursement with no rate can never reach the payout leg, so reject
+  // creation rather than insert a row that is doomed from the start.
+  const rateRow = await db.get(
+    `SELECT rate FROM exchange_rates
+     WHERE pair = 'USDCx/NGN'
+     ORDER BY updated_at DESC LIMIT 1`
+  );
+  const exchangeRate = Number(rateRow?.rate);
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+    const err = new Error(`No valid USDCx/NGN exchange rate on file (got ${rateRow?.rate ?? 'none'})`);
+    err.error_code = 'missing_exchange_rate';
+    err.statusCode = 400;
+    err.details = { rate: rateRow?.rate ?? null, pair: 'USDCx/NGN' };
+    throw err;
+  }
+  const amount_ngn_expected = computeAmountNgnExpected({
+    amount_usdcx_base_units: amount_usdcx,
+    rate: exchangeRate,
+  });
+
   const idempotency_key = `disbursement:${source_reference}:${amount_usdcx}:${Date.now()}`;
 
   // ── Idempotency check ────────────────────────────────────────────────
@@ -119,8 +162,9 @@ export async function initiateDisbursement({
        amount_usd, amount_usdcx,
        creator_address, creator_btc_address, recipient_bank_account, recipient_bank_code,
        ngn_recipient, status, metadata,
+       amount_ngn_expected, exchange_rate,
        last_heartbeat_at, created_at, updated_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW(),NOW())`,
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW(),NOW())`,
     [
       id, idempotency_key, source_reference, source_application,
       amount_usd, amount_usdcx,
@@ -128,6 +172,7 @@ export async function initiateDisbursement({
       ngn_recipient ? JSON.stringify(ngn_recipient) : null,
       DisbursementState.DISBURSEMENT_INITIATED,
       JSON.stringify(metadata),
+      amount_ngn_expected, exchangeRate,
     ]
   );
 

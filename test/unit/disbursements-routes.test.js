@@ -32,6 +32,9 @@ const VALID_BODY = {
 function createRowStore(db) {
   let row = null;
 
+  // G-04: a seeded USDCx/NGN rate is required for creation to succeed.
+  db.when(/SELECT rate FROM exchange_rates/, () => ({ rate: 1650 }));
+
   db.when(/SELECT \* FROM disbursements WHERE idempotency_key = \$1/, () => null);
 
   db.when(/INSERT INTO disbursements/, ({ params }) => {

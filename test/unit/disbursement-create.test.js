@@ -48,6 +48,7 @@ test('G-02: create rejects a blank bank field', async () => {
 
 test('G-02: create persists recipient_bank_account and recipient_bank_code in the INSERT', async () => {
   const ctx = createTestCtx();
+  ctx.db.when(/SELECT rate FROM exchange_rates/, () => ({ rate: 1650 }));
   ctx.db.when(/SELECT \* FROM disbursements WHERE id = \$1/, () => ({
     id: 'd-1',
     status: 'disbursement_initiated',
