@@ -52,6 +52,8 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 
 | 03a | `03a_SPRINT_0_5_MVP_PATH.md` | Fix P0 gaps + critical P1 blockers; end-to-end mock payout. | Active |
 
+| 03b | `04a_SPRINT_1_5_HARDENING.md` | Deterministic idempotency, dead-module cleanup, duplicate-handling tests. | Active |
+
 | 04 | `04\_SPRINT\_2\_STACKS\_USDCX.md` | Stacks/USDCx withdrawal lifecycle. | Pending |
 
 | 05 | `05\_SPRINT\_3\_YELLOWCARD.md` | Nigeria/NGN payout integration. | Pending |
