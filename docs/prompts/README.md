@@ -56,6 +56,8 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 
 | 04 | `04\_SPRINT\_2\_STACKS\_USDCX.md` | Stacks/USDCx withdrawal lifecycle. | Pending |
 
+| 04b | `04b_SPRINT_2_STACKS_USDCX.md` | Stacks/USDCx lifecycle model correction (no external verification). | Active |
+
 | 05 | `05\_SPRINT\_3\_YELLOWCARD.md` | Nigeria/NGN payout integration. | Pending |
 
 | 06 | `06\_SPRINT\_4\_EVIDENCE.md` | Settlement evidence and reconciliation. | Pending |
