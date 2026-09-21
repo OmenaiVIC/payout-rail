@@ -8,11 +8,15 @@
  * Shapes mirror the real adapters exactly as consumed by
  * transitionGuards.js / transitionActions.js:
  *   stacks     : burnUsdcx, getTransactionStatus
- *   xreserve   : requestAttestation, getAttestationStatus, releaseDestination,
- *                getReleaseStatus, healthCheck
+ *   xreserve   : requestAttestation, getAttestationStatus, observeDestinationRelease,
+ *                healthCheck
  *   yellowcard : submitSend, lookupSend, healthCheck, verifyWebhookSignature
  *
  * Every mock records its calls so tests can assert on the side-effect.
+ *
+ * G-08 note: the destination release is OBSERVED, never fabricated. The mock
+ * observeDestinationRelease defaults to `unobserved` (fail-closed); a test
+ * scripts evidence via its own override or the mockExternalEvidence helper.
  */
 
 const ZERO_HASH = `0x${'ab'.repeat(32)}`;
@@ -45,12 +49,10 @@ export function createMockXReserve() {
   const calls = {
     requestAttestation: [],
     getAttestationStatus: [],
-    releaseDestination: [],
-    getReleaseStatus: [],
+    observeDestinationRelease: [],
     healthCheck: [],
   };
   let attestationCounter = 0;
-  let releaseCounter = 0;
 
   return {
     calls,
@@ -70,15 +72,10 @@ export function createMockXReserve() {
       return { attestation_id: attestationId, status: 'complete' };
     },
 
-    async releaseDestination(params) {
-      calls.releaseDestination.push(params);
-      releaseCounter += 1;
-      return { release_id: `rel-mock-${releaseCounter}`, status: 'complete' };
-    },
-
-    async getReleaseStatus(releaseId) {
-      calls.getReleaseStatus.push(releaseId);
-      return { release_id: releaseId, status: 'complete' };
+    async observeDestinationRelease(params) {
+      calls.observeDestinationRelease.push(params);
+      // Fail-closed default: report only what a test scripts as evidence.
+      return { release_status: 'unobserved', source: 'mock', evidence: null, observed_at: new Date().toISOString() };
     },
 
     async healthCheck() {

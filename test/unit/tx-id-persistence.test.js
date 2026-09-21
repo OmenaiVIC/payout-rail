@@ -1,13 +1,17 @@
 /**
- * G-05: External tx ids are persisted onto the `disbursements` row.
+ * G-05: External ids are persisted onto the `disbursements` row.
  *
  * Regression for the dead-end: `submitBurn` returned `{ external_tx_id }` but
  * `executeTransition`'s persistence whitelist dropped it, so `isBurnConfirmed`
  * could never pass and the reconciliation worker skipped the row forever.
  *
- * These tests assert that the four identifier columns that already exist on
- * `disbursements` (external_tx_id, attestation_id, release_id, payout_id) are
- * written by the transitions that produce them.
+ * Sprint 2 (G-08): the fabricated `release_id` leg is retired. The destination
+ * release is now OBSERVED: the observation actions persist `release_status`
+ * (unobserved / observed_*) and nothing writes `release_id` ever again.
+ *
+ * These tests assert that the identifier columns that exist on `disbursements`
+ * (external_tx_id, attestation_id, payout_id) are written by the transitions
+ * that produce them, and that release_status is written by the observation leg.
  */
 
 import { describe, it } from 'node:test';
@@ -92,7 +96,7 @@ describe('G-05: burn_submitted → burn_confirmed regression (dead-end)', () => 
   });
 });
 
-describe('G-05: attestation_id / release_id / payout_id persist for their legs', () => {
+describe('G-05: attestation_id / release_status / payout_id persist for their legs', () => {
   it('requestAttestation persists attestation_id', async () => {
     const db = createFakeDb();
     db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
@@ -116,7 +120,7 @@ describe('G-05: attestation_id / release_id / payout_id persist for their legs',
     assert.equal(adapters.xreserve.calls.requestAttestation[0].tx_id, '0xburn-1');
   });
 
-  it('submitDestinationRelease persists release_id', async () => {
+  it('beginReleaseObservation persists release_status=unobserved and calls nothing', async () => {
     const db = createFakeDb();
     db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
@@ -127,27 +131,32 @@ describe('G-05: attestation_id / release_id / payout_id persist for their legs',
     const ctx = createTestCtx({ db, adapters });
 
     const result = await executeTransition(
-      def({ status: S.ATTESTATION_CONFIRMED, external_tx_id: '0xburn-1', creator_btc_address: VALID_BTC }),
-      S.DESTINATION_RELEASE_SUBMITTED,
+      def({ status: S.ATTESTATION_CONFIRMED, external_tx_id: '0xburn-1' }),
+      S.DESTINATION_RELEASE_UNOBSERVED,
       ctx,
       {},
       'test',
     );
 
     assert.equal(result.success, true, `transition failed: ${result.error}`);
-    assert.equal(result.new_state, S.DESTINATION_RELEASE_SUBMITTED);
+    assert.equal(result.new_state, S.DESTINATION_RELEASE_UNOBSERVED);
 
-    const upsert = db.findCall(/UPDATE disbursements SET release_id = \$4/);
-    assert.ok(upsert, 'expected an UPDATE that persists release_id');
-    assert.equal(upsert.params[0], result.details.release_id, 'persisted value matches the release returned');
+    const upsert = db.findCall(/UPDATE disbursements SET release_status = \$4/);
+    assert.ok(upsert, 'expected an UPDATE that persists release_status');
+    assert.equal(upsert.params[0], 'unobserved', 'the observation is pinned to unobserved');
+    assert.equal(adapters.xreserve.calls.observeDestinationRelease.length, 0,
+      'beginning the observation performs no external read or call (G-08)');
+    assert.equal(db.countMatching(/UPDATE disbursements SET release_id = \$4/), 0,
+      'no fabricated release_id is ever written');
   });
 
   it('submitYellowCardPayout persists payout_id and clears the amount_ngn_expected throw', async () => {
     const db = createFakeDb();
     db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
-    adapters.xreserve.getReleaseStatus = async () => ({ status: 'confirmed', release_id: 'rel-1' });
-    seedExternalRefs(db, ref('release_id', 'rel-1'));
+    // G-08: payout requires persisted observed_confirmed AND a fresh observation.
+    adapters.xreserve.observeDestinationRelease = async () =>
+      ({ release_status: 'observed_confirmed', source: 'mock', evidence: null, observed_at: new Date().toISOString() });
 
     // Payout gates: amountTolerance (no milestone row → pass with warning)
     db.when(/SELECT amount_usd as expected_amount FROM disbursements/, () => null);
@@ -163,7 +172,7 @@ describe('G-05: attestation_id / release_id / payout_id persist for their legs',
         status: S.DESTINATION_RELEASE_CONFIRMED,
         external_tx_id: '0xburn-1',
         attestation_id: 'att-1',
-        release_id: 'rel-1',
+        release_status: 'observed_confirmed',
         creator_address: VALID_CREATOR,
         creator_btc_address: VALID_BTC,
         source_reference: 'campaign-001',

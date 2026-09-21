@@ -4,7 +4,7 @@
  * All actions are idempotent — safe to re-run under duplicate worker execution.
  */
 
-import { DisbursementState } from './types.js';
+import { DisbursementState, ReleaseStatus } from './types.js';
 import { USDCX_CONTRACT, PAYOUT_API_BASE_URL } from '../../config/chainConfig.js';
 import { recordTxHash, recordApiResponse, recordGateResult } from './evidenceCollector.js';
 
@@ -154,56 +154,124 @@ export async function confirmAttestation(disbursement, ctx) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action: submitDestinationRelease
-// attestation_confirmed → destination_release_submitted
-// Requests xReserve to release funds to creator's BTC address
+// Action: beginReleaseObservation
+// attestation_confirmed → destination_release_unobserved (G-08)
+// Parks the row as "nothing observed yet". Deliberately makes NO adapter call:
+// the external settlement process releases funds on its own; there is nothing
+// for the app to request or fabricate (the old `releaseDestination()` no-op is
+// gone).
 // ─────────────────────────────────────────────────────────────────────────────
-export async function submitDestinationRelease(disbursement, ctx) {
-  const log = ctx.getLogger('transition:submitDestinationRelease');
+export async function beginReleaseObservation(disbursement, ctx) {
+  const log = ctx.getLogger('transition:beginReleaseObservation');
+  log.info({ id: disbursement.id }, 'Begin observing destination release — no external evidence yet');
+  return { release_status: ReleaseStatus.UNOBSERVED };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action: recordReleaseObservation
+// destination_release_unobserved → destination_release_observed (G-08)
+// Observes the external settlement surface and persists whatever evidence
+// exists (pending / confirmed / failed). The persisted value routes the next
+// tick; it can only come from `observeDestinationRelease`, never from the app.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function recordReleaseObservation(disbursement, ctx) {
+  const log = ctx.getLogger('transition:recordReleaseObservation');
   const db = ctx.getDb();
 
-  log.info({ id: disbursement.id }, 'Submitting destination release');
+  const observation = await observeReleaseFromAdapter(ctx, disbursement);
 
-  const release = await ctx.adapters.xreserve.releaseDestination({
-    attestation_id: await _getAttestationId(db, disbursement.id),
-    recipient_btc: disbursement.creator_btc_address || disbursement.creator_address,
-    amount_base_units: disbursement.amount_usdcx,
-    idempotencyKey: `release:${disbursement.id}`,
+  await upsertExternalRef(db, disbursement.id, 'xreserve', 'observation', disbursement.id, {
+    release_status: observation.release_status,
+    source: observation.source || null,
+    evidence: observation.evidence || null,
+    observed_at: observation.observed_at || null,
   });
 
-  await upsertExternalRef(db, disbursement.id, 'xreserve', 'release_id', release.release_id, {
-    submitted_at: new Date().toISOString(),
-    release_data: release,
+  await recordApiResponse({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
   });
 
-  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: 'xreserve', method: 'releaseDestination', response: release });
-
-  log.info({ id: disbursement.id, release_id: release.release_id }, 'Destination release submitted');
-  return { release_id: release.release_id };
+  log.info({ id: disbursement.id, release_status: observation.release_status }, 'Destination release observation recorded');
+  return {
+    release_status: observation.release_status,
+    release_observed_at: observation.observed_at || null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action: confirmDestinationRelease
-// destination_release_submitted → destination_release_confirmed
-// Records release confirmation from xReserve
+// destination_release_observed → destination_release_confirmed (G-08)
+// Re-observes the external surface and persists the confirmation evidence.
+// The guard (isReleaseObservedConfirmed) already required a fresh
+// `observed_confirmed`; this action records the same observation as truth.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function confirmDestinationRelease(disbursement, ctx) {
   const log = ctx.getLogger('transition:confirmDestinationRelease');
   const db = ctx.getDb();
 
-  const ref = await getExternalRef(db, disbursement.id, 'xreserve', 'release_id');
-  const release = await ctx.adapters.xreserve.getReleaseStatus(ref.identifier_value);
+  const observation = await observeReleaseFromAdapter(ctx, disbursement);
 
-  await upsertExternalRef(db, disbursement.id, 'xreserve', 'release_id', ref.identifier_value, {
-    ...ref.metadata,
+  await upsertExternalRef(db, disbursement.id, 'xreserve', 'observation', disbursement.id, {
+    ...(await observationRefMetadata(db, disbursement.id)),
+    release_status: observation.release_status,
+    source: observation.source || null,
+    evidence: observation.evidence || null,
+    observed_at: observation.observed_at || null,
     confirmed_at: new Date().toISOString(),
-    release_data: release,
   });
 
-  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: 'xreserve', method: 'getReleaseStatus', response: release });
+  await recordApiResponse({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
+  });
 
-  log.info({ id: disbursement.id, release_id: ref.identifier_value }, 'Destination release confirmed');
-  return { release_id: ref.identifier_value };
+  log.info({ id: disbursement.id, release_status: observation.release_status }, 'Destination release confirmed');
+  return {
+    release_status: observation.release_status,
+    release_observed_at: observation.observed_at || null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action: recordReleaseObservedFailed
+// destination_release_* → failed (G-08)
+// Persists that the external surface reports the release failed.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function recordReleaseObservedFailed(disbursement, ctx) {
+  const log = ctx.getLogger('transition:recordReleaseObservedFailed');
+  const db = ctx.getDb();
+
+  const observation = await observeReleaseFromAdapter(ctx, disbursement);
+
+  await upsertExternalRef(db, disbursement.id, 'xreserve', 'observation', disbursement.id, {
+    ...(await observationRefMetadata(db, disbursement.id)),
+    release_status: observation.release_status,
+    source: observation.source || null,
+    evidence: observation.evidence || null,
+    observed_at: observation.observed_at || null,
+    failed_at: new Date().toISOString(),
+  });
+
+  await recordApiResponse({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
+  });
+
+  log.warn({ id: disbursement.id, release_status: observation.release_status }, 'Destination release observation reports failure');
+  return {
+    release_status: observation.release_status,
+    failed_at: new Date().toISOString(),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,10 +419,28 @@ export async function getExternalRef(db, disbursementId, system, idType) {
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function _getAttestationId(db, disbursementId) {
-  const ref = await getExternalRef(db, disbursementId, 'xreserve', 'attestation_id');
-  if (!ref) throw new Error(`No attestation_id ref for disbursement ${disbursementId}`);
-  return ref.identifier_value;
+/**
+ * Fresh read of the external destination-release observation surface.
+ * The app records ONLY what this returns — it never fabricates a release status.
+ */
+async function observeReleaseFromAdapter(ctx, disbursement) {
+  const attestationRef = disbursement.attestation_id
+    ? null
+    : await getExternalRef(ctx.getDb(), disbursement.id, 'xreserve', 'attestation_id');
+  return ctx.adapters.xreserve.observeDestinationRelease({
+    disbursement_id: disbursement.id,
+    external_tx_id: disbursement.external_tx_id || null,
+    attestation_id: disbursement.attestation_id || attestationRef?.identifier_value || null,
+  });
+}
+
+/**
+ * Existing observation metadata (so confirm/failed actions merge, not replace,
+ * the first observation that moved the row to `observed`).
+ */
+async function observationRefMetadata(db, disbursementId) {
+  const ref = await getExternalRef(db, disbursementId, 'xreserve', 'observation');
+  return ref?.metadata || {};
 }
 
 async function isBurnConfirmed(disbursement, ctx) {

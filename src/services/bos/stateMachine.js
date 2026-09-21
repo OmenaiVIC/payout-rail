@@ -1,5 +1,5 @@
 /**
- * BOS State Machine — 13 states, 24 transitions
+ * BOS State Machine — 15 states, observation-based destination release
  * Each transition = { guard, action } pair
  * Guard: pure predicate — reads state, returns { ok, error_code, reason }
  * Action: side-effect — writes DB, calls external API, returns update payload
@@ -13,6 +13,11 @@ import * as actions from './transitionActions.js';
  * Action-returned fields that are written onto the `disbursements` row.
  * Anything not listed here is recorded in the audit log but never persisted
  * to the row — which is how external tx ids were previously dropped.
+ *
+ * `release_status` is whitelisted so observation actions persist the external
+ * settlement evidence onto the row (G-08 gating).
+ * `release_id` is NOT whitelisted: it was the fabricated id of the removed
+ * `releaseDestination()` call and must never be written again.
  */
 const PERSISTED_ACTION_FIELDS = {
   settled_at: (v) => v,
@@ -22,8 +27,8 @@ const PERSISTED_ACTION_FIELDS = {
   preflight_result: (v) => JSON.stringify(v),
   external_tx_id: (v) => v,
   attestation_id: (v) => v,
-  release_id: (v) => v,
   payout_id: (v) => v,
+  release_status: (v) => v,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,26 +93,47 @@ const TRANSITIONS = new Map([
     action: actions.markFailed,
   }],
 
-  // ── Destination release lifecycle ───────────────────────────────────────
-  [`${S.ATTESTATION_CONFIRMED}→${S.DESTINATION_RELEASE_SUBMITTED}`, {
-    description: 'Request xReserve to release funds to creator BTC address',
+  // ── Destination release lifecycle (G-08: observed, never fabricated) ─────
+  // The app does not "request" a release it controls. After the attestation is
+  // confirmed, the external settlement process releases USDC off-chain; the app
+  // parks in destination_release_unobserved, records any evidence it sees
+  // (→ destination_release_observed), and only confirms on pushed evidence
+  // that reports observed_confirmed (→ destination_release_confirmed).
+  // `advanceDisbursement` attempts exactly one candidate (nextStates[0]), so
+  // the observation states CHAIN instead of branching; evidence that reports
+  // pending/confirmed/failed all advance unobserved → observed, then the
+  // next tick routes confirmed → destination_release_confirmed. The → failed
+  // routes stay available for direct execution (webhook/operator path),
+  // consistent with every other failure transition in this machine.
+  [`${S.ATTESTATION_CONFIRMED}→${S.DESTINATION_RELEASE_UNOBSERVED}`, {
+    description: 'Begin observing destination release — no external evidence yet',
     guard:  guards.attestationConfirmedForRelease,
-    action: actions.submitDestinationRelease,
+    action: actions.beginReleaseObservation,
   }],
   [`${S.ATTESTATION_CONFIRMED}→${S.FAILED}`, {
-    description: 'Destination release request failed',
+    description: 'Destination release observation could not begin',
     guard:  guards.withinRetryBudget,
     action: actions.markFailed,
   }],
-  [`${S.DESTINATION_RELEASE_SUBMITTED}→${S.DESTINATION_RELEASE_CONFIRMED}`, {
-    description: 'xReserve confirms BTC arrived at creator address',
-    guard:  guards.isDestinationReleased,
+  [`${S.DESTINATION_RELEASE_UNOBSERVED}→${S.DESTINATION_RELEASE_OBSERVED}`, {
+    description: 'External evidence recorded for destination release',
+    guard:  guards.isReleaseObserved,
+    action: actions.recordReleaseObservation,
+  }],
+  [`${S.DESTINATION_RELEASE_UNOBSERVED}→${S.FAILED}`, {
+    description: 'Destination release observation reports failure',
+    guard:  guards.isReleaseObservedFailed,
+    action: actions.recordReleaseObservedFailed,
+  }],
+  [`${S.DESTINATION_RELEASE_OBSERVED}→${S.DESTINATION_RELEASE_CONFIRMED}`, {
+    description: 'External evidence reports destination release confirmed',
+    guard:  guards.isReleaseObservedConfirmed,
     action: actions.confirmDestinationRelease,
   }],
-  [`${S.DESTINATION_RELEASE_SUBMITTED}→${S.FAILED}`, {
-    description: 'Destination release timed out or rejected',
-    guard:  guards.withinRetryBudget,
-    action: actions.markFailed,
+  [`${S.DESTINATION_RELEASE_OBSERVED}→${S.FAILED}`, {
+    description: 'Destination release observation reports failure',
+    guard:  guards.isReleaseObservedFailed,
+    action: actions.recordReleaseObservedFailed,
   }],
 
   // ── Yellow Card payout lifecycle ────────────────────────────────────────

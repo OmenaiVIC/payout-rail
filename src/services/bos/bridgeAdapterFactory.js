@@ -17,7 +17,7 @@ const ADAPTER_ENV = process.env.BRIDGE_ADAPTER_ENV || 'xreserve';
  * Get the configured xReserve adapter.
  * Currently only xreserve adapter exists; stubs for 'cctp-v2' can be added here.
  *
- * @returns {Object} adapter implementing { requestAttestation, getAttestationStatus, releaseDestination, getReleaseStatus }
+ * @returns {Object} adapter implementing { requestAttestation, getAttestationStatus, observeDestinationRelease, healthCheck }
  */
 export function getXReserveAdapter() {
   switch (ADAPTER_ENV) {
@@ -53,7 +53,7 @@ export function getYellowCardAdapter() {
 
 function _mockAdapter() {
   const _attestations = new Map();
-  const _releases = new Map();
+  const _observations = new Map();
 
   return {
     async requestAttestation({ tx_id }) {
@@ -66,15 +66,13 @@ function _mockAdapter() {
       if (!record) return { status: 'failed', error: 'not found' };
       return { status: record.status };
     },
-    async releaseDestination({ attestation_id }) {
-      const relId = `mock-rel-${Date.now()}`;
-      _releases.set(relId, { status: 'confirmed', attestation_id });
-      return { release_id: relId, status: 'confirmed' };
-    },
-    async getReleaseStatus(relId) {
-      const record = _releases.get(relId);
-      if (!record) return { status: 'failed', error: 'not found' };
-      return { status: record.status };
+    async observeDestinationRelease({ disbursement_id }) {
+      // Fail-closed like the real adapter: report only what is latched.
+      const rec = _observations.get(disbursement_id);
+      if (!rec) {
+        return { release_status: 'unobserved', source: 'mock', evidence: null, observed_at: new Date().toISOString() };
+      }
+      return rec;
     },
     async healthCheck() {
       return { healthy: true, latencyMs: 0 };

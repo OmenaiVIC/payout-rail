@@ -62,9 +62,10 @@ test('mock adapters: expose the exact methods the pipeline consumes', async () =
   const xreserve = createMockXReserve();
   const att = await xreserve.requestAttestation({ tx_id: txHash });
   assert.ok(att.attestation_id);
-  const rel = await xreserve.releaseDestination({ attestation_id: att.attestation_id });
-  assert.ok(rel.release_id);
-  assert.equal(xreserve.calls.releaseDestination.length, 1);
+  const obs = await xreserve.observeDestinationRelease({ disbursement_id: 'd-1', external_tx_id: txHash });
+  assert.equal(obs.release_status, 'unobserved', 'mock observeDestinationRelease defaults unobserved (fail closed)');
+  assert.equal(obs.source, 'mock');
+  assert.equal(xreserve.calls.observeDestinationRelease.length, 1);
 
   const yellowcard = createMockYellowCard();
   const payout = await yellowcard.submitSend({ amount: 100 });

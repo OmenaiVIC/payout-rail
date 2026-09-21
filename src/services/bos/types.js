@@ -1,16 +1,20 @@
 /**
  * BOS (Bridge Orchestration Service) — Core Types
- * 13 disbursement states, TypeScript-style type documentation via JSDoc
+ * 15 disbursement states, TypeScript-style type documentation via JSDoc
  */
 
 /**
- * Disbursement states — matches 006_bos_schema.sql enum
+ * Disbursement states — matches 007_bos_schema.sql + migrations table
  * Canonical order for flow visualization:
  *   initiated → burn_submitted → burn_confirmed →
  *   attestation_requested → attestation_confirmed →
- *   destination_release_submitted → destination_release_confirmed →
+ *   destination_release_unobserved → destination_release_observed →
+ *   destination_release_confirmed →
  *   yellowcard_payout_submitted → yellowcard_payout_confirmed →
  *   settled | failed | cancelled | manual_review
+ *
+ * The destination release is OBSERVED, never app-controlled (G-08): the app
+ * records release_status evidence only, and pays out on observed_confirmed.
  *
  * @typedef {string} DisbursementState
  * @enum {DisbursementState}
@@ -22,7 +26,8 @@ export const DisbursementState = {
   BURN_CONFIRMED:               'burn_confirmed',
   ATTESTATION_REQUESTED:        'attestation_requested',
   ATTESTATION_CONFIRMED:        'attestation_confirmed',
-  DESTINATION_RELEASE_SUBMITTED:'destination_release_submitted',
+  DESTINATION_RELEASE_UNOBSERVED:'destination_release_unobserved',
+  DESTINATION_RELEASE_OBSERVED: 'destination_release_observed',
   DESTINATION_RELEASE_CONFIRMED:'destination_release_confirmed',
   YELLOWCARD_PAYOUT_SUBMITTED:  'yellowcard_payout_submitted',
   YELLOWCARD_PAYOUT_CONFIRMED:  'yellowcard_payout_confirmed',
@@ -30,6 +35,26 @@ export const DisbursementState = {
   FAILED:                       'failed',
   CANCELLED:                    'cancelled',
   MANUAL_REVIEW:                'manual_review',
+};
+
+/**
+ * Destination-release observation status — the external settlement outcome as
+ * recorded by the app. The app fabricates NONE of these values; they come only
+ * from observing the external process (`observeDestinationRelease`).
+ *
+ * 'unobserved'         — no external evidence seen yet (fail-closed default)
+ * 'observed_pending'   — evidence exists, release in flight
+ * 'observed_confirmed' — evidence exists, release completed
+ * 'observed_failed'    — evidence exists, release failed
+ *
+ * @typedef {string} ReleaseStatus
+ * @enum {ReleaseStatus}
+ */
+export const ReleaseStatus = {
+  UNOBSERVED:          'unobserved',
+  OBSERVED_PENDING:    'observed_pending',
+  OBSERVED_CONFIRMED:  'observed_confirmed',
+  OBSERVED_FAILED:     'observed_failed',
 };
 
 /** Terminal states — no further transitions possible */
@@ -56,6 +81,7 @@ export const FAILED_STATES = new Set([
  * @property {string}  creator_address    — recipient Stacks address
  * @property {string}  status             — DisbursementState
  * @property {string|null} external_tx_id — Stacks tx ID for the burn
+ * @property {string|null} release_status — release observation (ReleaseStatus); gates the payout leg
  * @property {string|null} error_message  — last failure detail
  * @property {number}  retry_count        — how many retries so far
  * @property {number|null} max_retries    — retry budget (default 3)

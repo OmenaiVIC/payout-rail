@@ -9,14 +9,19 @@
  *
  * The burn transaction IS the attestation trigger. xReserve monitors Stacks for burn
  * events and releases USDC on Ethereum off-chain. This adapter maps that flow to the
- * 5-method interface the BOS state machine expects.
+ * 4-method interface the BOS state machine expects:
  *
- * Option A mapping (backward-compatible with state machine):
- *   requestAttestation({tx_id})  → verify burn tx exists on-chain via Hiro tx status API
- *   getAttestationStatus(id)     → poll Hiro GET /extended/v1/tx/{id}
- *   releaseDestination({})       → no-op (xReserve handles off-chain), returns confirmed
- *   getReleaseStatus(id)         → same as getAttestationStatus (both track the burn tx)
- *   healthCheck()                → verify Hiro API reachable
+ *   requestAttestation({tx_id})       → verify burn tx exists on-chain via Hiro tx status API
+ *   getAttestationStatus(id)          → poll Hiro GET /extended/v1/tx/{id}
+ *   observeDestinationRelease({...})  → read the external release outcome (G-08)
+ *   healthCheck()                     → verify Hiro API reachable
+ *
+ * G-08: the app never requests or "confirms" a release. xReserve settles USDC
+ * off-chain on its own; the app only OBSERVES. The old releaseDestination() /
+ * getReleaseStatus() pair (which fabricated a `confirmed` result) are removed.
+ * The real observation surface is UNVERIFIED (no credentials/sandbox access),
+ * so this adapter fails closed: it reports `unobserved`, never a fabricated
+ * confirmation.
  */
 
 import { HIRO_API_URL, USDCX_CONTRACT, DEPLOYER_ADDRESS } from '../../config/chainConfig.js';
@@ -149,7 +154,7 @@ async function _readOnlyCall(contractId, functionName, hexArgs = []) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Exported adapter methods — 5-method interface
+// Exported adapter methods — 4-method interface
 // ─────────────────────────────────────────────────────────────
 
 /**
@@ -203,54 +208,36 @@ export async function getAttestationStatus(attestationId) {
 }
 
 /**
- * Request destination release.
+ * Observe the external destination-release outcome for a disbursement (G-08).
  *
- * In xReserve's on-chain model, there is no on-chain "release" call.
- * xReserve monitors Stacks burns off-chain and releases USDC on Ethereum
- * automatically. This method returns immediately with a synthetic release_id
- * (the attestation_id/burn txid) and status 'confirmed'.
+ * The app records ONLY what this method returns — it never fabricates a release
+ * confirmation. xReserve settles USDC off-chain; this method reads whatever the
+ * external settlement surface reports.
+ *
+ * UNVERIFIED: this repository has no xReserve credentials or sandbox/testnet
+ * access to the real settlement surface, and there is no verified endpoint or
+ * event that distinguishes "release failed" from "no information". This adapter
+ * therefore FAILS CLOSED — it reports `unobserved` until a verification-only
+ * sprint (with a real settlement surface) wires the underlying status source.
+ * Disbursements will park in destination_release_unobserved and time out to
+ * manual_review by design rather than ever claiming an unverified release.
  *
  * @param {Object} params
- * @param {string} params.attestation_id  — burn tx hash
- * @param {string} params.recipient_btc   — BTC address (logged, not used on-chain)
- * @param {number} params.amount_base_units — USDCx amount in base units (logged)
- * @param {string} params.idempotencyKey  — idempotency key (logged)
- * @returns {Promise<{ release_id: string, status: string }>}
+ * @param {string} params.disbursement_id — BOS disbursement id
+ * @param {string} [params.external_tx_id] — the Stacks burn tx id
+ * @param {string} [params.attestation_id] — xReserve attestation id (the burn tx id)
+ * @returns {Promise<{ release_status: string, source: string, evidence: Object|null, observed_at: string }>}
+ *   release_status: 'unobserved' (fail-closed) — never a fabricated confirmation
  */
-export async function releaseDestination({ attestation_id, recipient_btc, amount_base_units, idempotencyKey }) {
-  console.log(`[xreserve] releaseDestination: attestation=${attestation_id} recipient=${recipient_btc} amount=${amount_base_units}`);
-
-  // xReserve handles release off-chain — no on-chain call needed.
-  // The burn tx being confirmed is sufficient for xReserve to process the release.
+export async function observeDestinationRelease({ disbursement_id, external_tx_id, attestation_id }) {
+  console.log(
+    `[xreserve] observeDestinationRelease: disbursement=${disbursement_id} burn=${external_tx_id ?? 'n/a'} attestation=${attestation_id ?? 'n/a'} → unobserved (UNVERIFIED surface, fail closed)`
+  );
   return {
-    release_id: attestation_id,
-    status: 'confirmed',
-  };
-}
-
-/**
- * Poll destination release status.
- *
- * In xReserve's model, release status tracks the same burn tx. Once the burn is
- * confirmed, xReserve processes the release off-chain. This polls the burn tx
- * status as a proxy for release confirmation.
- *
- * @param {string} releaseId — the burn tx hash (release_id == attestation_id)
- * @returns {Promise<{ status: string, release_data?: Object }>}
- *   status: 'pending' | 'confirmed' | 'failed'
- */
-export async function getReleaseStatus(releaseId) {
-  const txStatus = await _getTxStatus(releaseId);
-
-  return {
-    status: txStatus.status,
-    release_data: {
-      tx_id: releaseId,
-      tx_status: txStatus.tx_status,
-      block_height: txStatus.block_height,
-      burn_block_time: txStatus.burn_block_time,
-      error: txStatus.error,
-    },
+    release_status: 'unobserved',
+    source: 'xreserve.unverified',
+    evidence: null,
+    observed_at: new Date().toISOString(),
   };
 }
 
@@ -298,8 +285,7 @@ export async function healthCheck() {
 export default {
   requestAttestation,
   getAttestationStatus,
-  releaseDestination,
-  getReleaseStatus,
+  observeDestinationRelease,
   healthCheck,
   classifyError,
 };

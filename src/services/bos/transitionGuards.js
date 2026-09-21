@@ -3,7 +3,7 @@
  * Each guard returns { ok: true } or { ok: false, error_code, reason }
  */
 
-import { DisbursementState } from './types.js';
+import { DisbursementState, ReleaseStatus } from './types.js';
 import { runAllGates } from './payoutGates.js';
 import { TwoPersonApproval } from './twoPersonApproval.js';
 
@@ -67,39 +67,92 @@ export async function isAttestationConfirmed(disbursement, ctx) {
 }
 
 /**
- * attestation_confirmed → destination_release_submitted
- * Guard: attestation confirmed (re-validates)
+ * attestation_confirmed → destination_release_unobserved (G-08)
+ * Guard: attestation confirmed (re-validates). Nothing is observed yet — the
+ * action parks the row in `unobserved` without calling any external release API.
  */
 export async function attestationConfirmedForRelease(disbursement, ctx) {
   return isAttestationConfirmed(disbursement, ctx);
 }
 
 /**
- * destination_release_submitted → destination_release_confirmed
- * Guard: xReserve has confirmed the destination release (BTC arrived at recipient)
+ * destination_release_unobserved → destination_release_observed (G-08)
+ * Guard: the external settlement surface produced SOME observation.
+ *
+ * Only `unobserved` (nothing yet / poll read failed) rejects; any real evidence
+ * — pending, confirmed, or failed — advances the row to `observed`. The specific
+ * evidence value is persisted by the action and routes the NEXT tick.
  */
-export async function isDestinationReleased(disbursement, ctx) {
-  const ref = await _getExternalRef(ctx, disbursement.id, 'xreserve', 'release_id');
-  if (!ref) {
-    return { ok: false, error_code: 'u8224', reason: 'No release external_ref found' };
+export async function isReleaseObserved(disbursement, ctx) {
+  const observation = await _releaseObservation(ctx, disbursement);
+  if (!observation) {
+    return { ok: false, error_code: 'u8224', reason: 'No release observation available' };
   }
-  try {
-    const status = await ctx.adapters.xreserve.getReleaseStatus(ref.identifier_value);
-    if (status.status === 'confirmed') {
-      return { ok: true, details: { release_id: ref.identifier_value } };
-    }
-    return { ok: false, error_code: 'u8225', reason: `Release status: ${status.status}` };
-  } catch (err) {
-    return { ok: false, error_code: 'u8226', reason: `Release poll failed: ${err.message}` };
+  if (
+    observation.release_status === ReleaseStatus.OBSERVED_PENDING ||
+    observation.release_status === ReleaseStatus.OBSERVED_CONFIRMED ||
+    observation.release_status === ReleaseStatus.OBSERVED_FAILED
+  ) {
+    return { ok: true, details: observation };
   }
+  return { ok: false, error_code: 'u8225', reason: `Release observation: ${observation.release_status}` };
+}
+
+/**
+ * destination_release_observed → destination_release_confirmed (G-08)
+ * Guard: a FRESH observation says the release is confirmed.
+ *
+ * Fail-closed: only `observed_confirmed` passes. The observation is polled at
+ * transition time — the persisted `release_status` alone can never unlock the
+ * confirmed state, and `unobserved`/`observed_pending`/`observed_failed`/a
+ * poll read error all park the row.
+ */
+export async function isReleaseObservedConfirmed(disbursement, ctx) {
+  const observation = await _releaseObservation(ctx, disbursement);
+  if (!observation) {
+    return { ok: false, error_code: 'u8224', reason: 'No release observation available' };
+  }
+  if (observation.release_status === ReleaseStatus.OBSERVED_CONFIRMED) {
+    return { ok: true, details: observation };
+  }
+  return { ok: false, error_code: 'u8226', reason: `Release observation: ${observation.release_status}` };
+}
+
+/**
+ * destination_release_* → failed (G-08)
+ * Guard: a fresh observation says the release failed.
+ */
+export async function isReleaseObservedFailed(disbursement, ctx) {
+  const observation = await _releaseObservation(ctx, disbursement);
+  if (!observation) {
+    return { ok: false, error_code: 'u8224', reason: 'No release observation available' };
+  }
+  if (observation.release_status === ReleaseStatus.OBSERVED_FAILED) {
+    return { ok: true, details: observation };
+  }
+  return { ok: false, error_code: 'u8227', reason: `Release observation: ${observation.release_status}` };
 }
 
 /**
  * destination_release_confirmed → yellowcard_payout_submitted
- * Guard: destination release confirmed (re-validates) + payout gates + 2-of-N approval
+ * Guard: destination release CONFIRMED (fresh observation + persisted value)
+ *   + payout gates + 2-of-N approval.
+ *
+ * Fail-closed (G-08/AC3): release confirmation on record must be corroborated
+ * by a FRESH observation at payout time — a hand-edited `release_status` or a
+ * stale `destination_release_confirmed` state can never unlock money movement.
  */
 export async function destinationReleasedForPayout(disbursement, ctx) {
-  const release = await isDestinationReleased(disbursement, ctx);
+  const persisted = disbursement.release_status;
+  if (persisted !== ReleaseStatus.OBSERVED_CONFIRMED) {
+    return {
+      ok: false,
+      error_code: 'u8234',
+      reason: `Destination release not confirmed on record (release_status=${persisted ?? 'null'}) — payout blocked`,
+    };
+  }
+
+  const release = await isReleaseObservedConfirmed(disbursement, ctx);
   if (!release.ok) return release;
 
   // Enforce payout gates before Yellow Card payout
@@ -244,4 +297,24 @@ async function _getExternalRef(ctx, disbursementId, system, identifierType) {
      WHERE disbursement_id = $1 AND external_system = $2 AND identifier_type = $3`,
     [disbursementId, system, identifierType]
   );
+}
+
+/**
+ * Fresh read of the external destination-release observation surface.
+ * Fail-closed: any poll error yields null (treated as "no evidence yet"),
+ * which every release guard rejects.
+ */
+async function _releaseObservation(ctx, disbursement) {
+  const attestationRef = disbursement.attestation_id
+    ? null
+    : await _getExternalRef(ctx, disbursement.id, 'xreserve', 'attestation_id');
+  try {
+    return await ctx.adapters.xreserve.observeDestinationRelease({
+      disbursement_id: disbursement.id,
+      external_tx_id: disbursement.external_tx_id || null,
+      attestation_id: disbursement.attestation_id || attestationRef?.identifier_value || null,
+    });
+  } catch (err) {
+    return null;
+  }
 }
