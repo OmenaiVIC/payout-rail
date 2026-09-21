@@ -101,8 +101,12 @@
   `usdcx-v1` protocol entrypoint.
 - **Risk:** a burn broadcast to the wrong contract does nothing (or fails), so funds may be sent to a
   routine that can't complete.
-- **Fix direction:** verify the burn function/entrypoint vs the deployed contract ABI (testnet) with a
-  real stub, then wire the correct principal + argument encoding; test on testnet.
+- **Status (Sprint 2):** seam extracted but gap still OPEN. The burn target now resolves through
+  `chainConfig.getBurnTarget()` (`chainConfig.js`) and the entrypoint is marked UNVERIFIED in
+  `StacksAdapter.burnUsdcx`; changing target/function/args is now a one-line config correction.
+- **Fix direction (unchanged):** verify the burn function/entrypoint vs the deployed contract ABI
+  (testnet) with a real stub, set `verified: true` in `getBurnTarget()` to the correct principal +
+  argument encoding, and test on testnet.
 
 ### G-10  No public/verifiable way to resolve manual review; `manual_review_queue` never written  [P1]
 - **Evidence:** reaper moves to `manual_review` status (`stuckStateReaper.js:155`); `MANUAL_REVIEW→`

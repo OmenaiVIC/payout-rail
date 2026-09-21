@@ -8,6 +8,11 @@
  *
  * Adapter interface consumed by BOS transition guards/actions:
  *   { burnUsdcx, getTransactionStatus }
+ *
+ * GAP-09: the burn entrypoint is UNVERIFIED. `burnUsdcx` resolves its
+ * contract.function through chainConfig.getBurnTarget() — today an assumed
+ * SIP-010-style `burn` on USDCX_CONTRACT — so the real mechanism can be
+ * corrected in one place when verified. See that function's docs.
  */
 
 import {
@@ -20,11 +25,11 @@ import {
   cvToHex,
 } from '@stacks/transactions';
 import {
-  USDCX_CONTRACT,
   HIRO_API_URL,
   networkInstance,
   txVersion,
   explorerUrl,
+  getBurnTarget,
 } from '../../config/chainConfig.js';
 
 const API_URL = HIRO_API_URL;
@@ -214,7 +219,13 @@ async function getTransactionStatus(txHash) {
 }
 
 /**
- * Burn USDCx on Stacks (SIP-010 burn)
+ * Burn USDCx on Stacks (GAP-09 — UNVERIFIED).
+ *
+ * The burn target (contract.function) is an ASSUMED SIP-010-style `burn` on
+ * the USDCx token contract, resolved through chainConfig.getBurnTarget(). It
+ * has NOT been verified against a reviewed contract ABI or a testnet
+ * integration; a returned txHash is NOT proof USDCx was destroyed until
+ * GAP-09 closes. Correct the target in getBurnTarget(), not here.
  * @param {Object} params
  * @param {number} params.amount - amount in USDCx base units (6 decimals)
  * @param {string} [params.memo] - optional memo
@@ -225,14 +236,16 @@ async function burnUsdcx({ amount, memo, idempotencyKey }) {
   init();
   if (!_wallet) throw new Error('PAYOUT_TX_SIGNING_KEY not configured');
   const pk = _wallet.privateKey;
-  const [addr, name] = USDCX_CONTRACT.split('.');
+  const target = getBurnTarget();
+  const [addr, name] = target.contract.split('.');
+  const functionName = target.function;
   const args = [
     uintCV(amount),
   ];
   if (memo) {
     args.push(bufferCV(Buffer.from(memo.slice(0, 34), 'utf-8')));
   }
-  const txHash = await callContract(pk, name, 'burn', args, addr);
+  const txHash = await callContract(pk, name, functionName, args, addr);
   return txHash;
 }
 

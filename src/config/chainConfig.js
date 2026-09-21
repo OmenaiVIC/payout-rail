@@ -13,6 +13,7 @@
 //   - DEPLOYER_ADDRESS      — USDCx deployer (network-aware)
 //   - explorerUrl(txHash)   — network-aware explorer link builder
 //   - PAYOUT_API_BASE_URL   — backend public URL for relay/webhook callbacks
+//   - getBurnTarget()       — USDCx burn contract.function (GAP-09 seam, UNVERIFIED)
 //
 // Derived from CineX backend/src/config/chain.js, scoped to the BOS/payout
 // subsystem and re-prefixed with PAYOUT_ so the two repos share no runtime config.
@@ -73,6 +74,28 @@ export const txVersion = NETWORK === 'mainnet'
 
 // Backend public URL for relay / webhook callbacks (used by BOS transition actions).
 export const PAYOUT_API_BASE_URL = process.env.PAYOUT_API_BASE_URL || 'http://localhost:3001';
+
+/**
+ * Burn target for the USDCx burn leg (GAP-09 — UNVERIFIED).
+ *
+ * Seam for the burn mechanism: which contract.function actually destroys
+ * USDCx on Stacks has NOT been verified against a reviewed contract ABI or a
+ * testnet integration (docs describe burning via the `usdcx-v1` protocol
+ * entrypoint, not necessarily `burn` on the token contract). Every caller
+ * resolves the target through here so that a single correction can re-point
+ * the whole leg once GAP-09 is closed. Do not treat `verified: false` targets
+ * (or spread tx hashes) as proof USDCx was destroyed.
+ *
+ * @returns {{ contract: string, function: string, verified: boolean, note: string }}
+ */
+export function getBurnTarget() {
+  return {
+    contract: USDCX_CONTRACT,
+    function: 'burn',
+    verified: false,
+    note: 'UNVERIFIED — assumes a SIP-010-style burn entrypoint; see docs/GAP_REGISTER.md (GAP-09)',
+  };
+}
 
 if (!process.env.PAYOUT_API_BASE_URL) {
   console.warn(`[chain] PAYOUT_API_BASE_URL not set — defaulting to ${PAYOUT_API_BASE_URL}`);
