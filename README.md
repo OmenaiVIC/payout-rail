@@ -60,13 +60,13 @@ Express app for `@vercel/node` instead of calling `listen()`.
 
 ## State machine
 
-14 states, 28+ transitions (see `src/services/bos/stateMachine.js` and `types.js`).
+15 states, 28+ transitions (see `src/services/bos/stateMachine.js` and `types.js`).
 
 ```
 disbursement_initiated
   → burn_submitted → burn_confirmed
   → attestation_requested → attestation_confirmed
-  → destination_release_submitted → destination_release_confirmed
+  → destination_release_unobserved → destination_release_observed → destination_release_confirmed
   → yellowcard_payout_submitted → yellowcard_payout_confirmed
   → settled
 ```

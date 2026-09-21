@@ -14,13 +14,14 @@ import { getReaperThresholdMs } from './monitoring/thresholdConfig.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_SLA_MS = {
-  [DisbursementState.BURN_SUBMITTED]:               600_000,  // 10 min
-  [DisbursementState.BURN_CONFIRMED]:               300_000,  // 5 min (internal, fast)
-  [DisbursementState.ATTESTATION_REQUESTED]:         900_000,  // 15 min
-  [DisbursementState.ATTESTATION_CONFIRMED]:         300_000,  // 5 min (internal, fast)
-  [DisbursementState.DESTINATION_RELEASE_SUBMITTED]: 3_600_000, // 60 min
-  [DisbursementState.DESTINATION_RELEASE_CONFIRMED]: 300_000,  // 5 min (internal, fast)
-  [DisbursementState.YELLOWCARD_PAYOUT_SUBMITTED]:   1_800_000, // 30 min
+  [DisbursementState.BURN_SUBMITTED]:                600_000,  // 10 min
+  [DisbursementState.BURN_CONFIRMED]:                300_000,  // 5 min (internal, fast)
+  [DisbursementState.ATTESTATION_REQUESTED]:          900_000,  // 15 min
+  [DisbursementState.ATTESTATION_CONFIRMED]:          300_000,  // 5 min (internal, fast)
+  [DisbursementState.DESTINATION_RELEASE_UNOBSERVED]: 1_800_000, // 30 min (awaiting settlement evidence)
+  [DisbursementState.DESTINATION_RELEASE_OBSERVED]:   3_600_000, // 60 min (partial evidence parked/observed)
+  [DisbursementState.DESTINATION_RELEASE_CONFIRMED]:  300_000,  // 5 min (internal, fast)
+  [DisbursementState.YELLOWCARD_PAYOUT_SUBMITTED]:    1_800_000, // 30 min
 };
 
 // States the reaper should NOT touch (manual_review is operator-managed)

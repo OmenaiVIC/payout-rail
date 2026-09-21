@@ -5,7 +5,7 @@
  *
  * Step 1 (Stacks Burn):   disbursement_initiated → burn_submitted → burn_confirmed
  * Step 2 (Attestation):   burn_confirmed → attestation_requested → attestation_confirmed
- * Step 3 (Release):       attestation_confirmed → destination_release_submitted → destination_release_confirmed
+ * Step 3 (Release):       attestation_confirmed → destination_release_unobserved → destination_release_observed → destination_release_confirmed
  * Step 4 (Payout):        destination_release_confirmed → yellowcard_payout_submitted → yellowcard_payout_confirmed → settled
  *
  * All operations are idempotent. Individual failures do not block other disbursements.
