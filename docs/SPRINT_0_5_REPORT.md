@@ -38,7 +38,7 @@ the INSERT carries the recipient bank columns — is in the default suite.
 | D7 | `approve` / manual-review-resolve endpoints deliberately omitted (actor model undecided) | blocker | reported only, not built |
 | D8 | G-05 test file named to the plan's `tx-id-persistence.test.js` (WIP draft renamed) | cosmetic | resolved, no deviation remains |
 | D9 | G-04 tests must seed the `USDCx/NGN` rate in the G-02/G-03 fixtures (a rate is a hard create-time requirement after G-04) | — | done |
-| D10 | G-06 requires the idempotent guard + evidence recording inside `handleYellowCardWebhook` (`disbursementService.js`), a file not listed in the plan | — | done — the plan named only the route/verifier files |
+| D10 | G-06 requires the idempotent guard + evidence recording inside `handleYellowCardWebhook` (`disbursementService.js`), a file not listed in the plan | — | done — the plan named only the route/verifier files. `recordWebhookPayload` was wired into `handleYellowCardWebhook` in `src/services/bos/disbursementService.js`, recording each verified Yellow Card delivery (and its `signatureValid` flag) into the evidence chain before the idempotent advance check |
 | D11 | Commit 5 also landed the pre-existing, unmodified `package-lock.json` | — | done — pinning the renegotiated `npm` lockfile; no dependency added |
 
 No CineX files were modified. No state was added or removed; the only transition
