@@ -1,26 +1,14 @@
 \# Payout Rail — Prompt Library
 
-
-
 This folder contains the operating instructions for the Payout Rail extraction and rebuild project.
-
-
 
 It is the project's operating manual. The agent reads the relevant file at the start of each task. Files are versioned with the repository so that instructions remain stable, reviewable, and reproducible across sessions.
 
-
-
 \---
-
-
 
 \## Purpose
 
-
-
 The prompts define:
-
-
 
 \- The standing role and principles the agent must operate under.
 
@@ -30,55 +18,25 @@ The prompts define:
 
 \- The sprint-by-sprint scope for the Payout Rail project.
 
-
-
 \---
-
-
 
 \## How to Use These Prompts
 
-
-
 \### Session Start (Every Time)
-
-
 
 Before giving the agent any task, paste this once:
 
-
-
-Read and internalize docs/prompts/00\_MASTER.md and docs/PRODUCT\_CHANGE\_CONTROL.md as standing constraints for this session. Confirm you have read both, summarize the key principles you will operate under, then wait for the task.
-
-
-
-
-
-
+Read and internalize docs/prompts/00_MASTER.md and docs/PRODUCT_CHANGE_CONTROL.md as standing constraints for this session. Confirm you have read both, summarize the key principles you will operate under, then wait for the task.
 
 \### Task Start
 
-
-
 Then give the agent a short directive referencing the specific prompt file for the current task, for example:
 
-
-
-Execute docs/prompts/01\_PROMPT\_0A\_EXTRACTION.md under the standing constraints. Additional constraint: discovery-only. Write outputs to docs/extraction-plan/. Do not write, move, copy, or delete any other files. Stop when done and wait for my review.
-
-
-
-
-
-
+Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. Additional constraint: discovery-only. Write outputs to docs/extraction-plan/. Do not write, move, copy, or delete any other files. Stop when done and wait for my review.
 
 \---
 
-
-
 \## Execution Order
-
-
 
 | # | File | Purpose | Status |
 
@@ -90,7 +48,9 @@ Execute docs/prompts/01\_PROMPT\_0A\_EXTRACTION.md under the standing constraint
 
 | 02 | `02\_PROMPT\_0\_BASELINE.md` | Establish technical and product baseline. | Pending |
 
-| 03 | `03\_SPRINT\_1\_ORCHESTRATION.md` | Standalone orchestration core. | Pending |
+| 03 | `03_SPRINT_1_ORCHESTRATION.md` | Standalone orchestration core. **SUPERSEDED by 03a.** | Superseded |
+
+| 03a | `03a_SPRINT_0_5_MVP_PATH.md` | Fix P0 gaps + critical P1 blockers; end-to-end mock payout. | Active |
 
 | 04 | `04\_SPRINT\_2\_STACKS\_USDCX.md` | Stacks/USDCx withdrawal lifecycle. | Pending |
 
@@ -106,19 +66,11 @@ Execute docs/prompts/01\_PROMPT\_0A\_EXTRACTION.md under the standing constraint
 
 | 10 | `10\_SPRINT\_8\_GRANT.md` | Product evidence and grant readiness. | Pending |
 
-
-
 \---
-
-
 
 \## Standing Constraints
 
-
-
 These apply to every session and every task:
-
-
 
 | Constraint | Location |
 
@@ -132,15 +84,9 @@ These apply to every session and every task:
 
 | Destination repository | Payout Rail |
 
-
-
 \---
 
-
-
 \## Guardrails
-
-
 
 \- CineX is a protected source product. Do not modify, rename, archive, or strip CineX functionality merely to serve Payout Rail.
 
@@ -154,15 +100,9 @@ These apply to every session and every task:
 
 \- Human review required. Where the product design requires human approval, automation must never silently bypass it.
 
-
-
 \---
 
-
-
 \## Outputs Produced by These Prompts
-
-
 
 | Prompt | Outputs |
 
@@ -190,15 +130,9 @@ These apply to every session and every task:
 
 | 10 (S8) | Capability matrix, claims register, grant package |
 
-
-
 \---
 
-
-
 \## Maintenance
-
-
 
 \- During active development, these prompts are the source of truth for project scope and constraints.
 
@@ -206,15 +140,9 @@ These apply to every session and every task:
 
 \- When the project reaches a stable release, move this folder to `docs/archive/prompts/` for historical reference rather than deleting it.
 
-
-
 \---
 
-
-
 \## Related Documents
-
-
 
 \- `docs/PRODUCT\_CHANGE\_CONTROL.md` — standing change control rule
 
@@ -227,4 +155,3 @@ These apply to every session and every task:
 \- `docs/PRODUCT\_BASELINE.md` — created in PROMPT 0
 
 \- `docs/CLAIMS\_REGISTER.md` — created in PROMPT 0 and updated through Sprint 8
-
