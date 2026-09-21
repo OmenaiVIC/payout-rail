@@ -3,6 +3,10 @@
  *
  * Validates webhook authenticity from xReserve and Yellow Card.
  * Supports configurable secret per adapter.
+ *
+ * ESM, single canonical verifier: adapter-level verifyWebhookSignature
+ * (yellowcardAdapter.js) delegates here. Fails CLOSED: when no secret is
+ * configured the payload is rejected, never trusted.
  */
 
 import crypto from 'node:crypto';
@@ -13,7 +17,7 @@ function getYellowCardSecret() { return process.env.YELLOW_CARD_WEBHOOK_SECRET |
 /**
  * Verify HMAC-SHA256 signature of a webhook payload
  *
- * @param {string} payload — raw request body (string)
+ * @param {string|Buffer} payload — raw request body
  * @param {string} signature — signature from header (hex or base64)
  * @param {string} secret — shared secret
  * @param {string} algorithm — 'sha256' (default)
@@ -50,15 +54,15 @@ function verifyHmac(payload, signature, secret, algorithm = 'sha256') {
  * Verify an xReserve webhook
  *
  * Headers checked: X-Signature, X-Hub-Signature-256
- * @param {string} rawBody
+ * Fail-closed: an unconfigured secret rejects, rather than skipping, checks.
+ * @param {string|Buffer} rawBody
  * @param {Object} headers — request headers
  * @returns {{ valid: boolean, reason?: string }}
  */
 function verifyXReserveWebhook(rawBody, headers) {
   const secret = getXReserveSecret();
   if (!secret) {
-    // No secret configured — skip verification in dev
-    return { valid: true, reason: 'no_secret_configured' };
+    return { valid: false, reason: 'no_secret_configured' };
   }
 
   const signature =
@@ -79,14 +83,15 @@ function verifyXReserveWebhook(rawBody, headers) {
  * Verify a Yellow Card webhook
  *
  * Headers checked: X-Signature, X-YellowCard-Signature
- * @param {string} rawBody
+ * Fail-closed: an unconfigured secret rejects, rather than skipping, checks.
+ * @param {string|Buffer} rawBody
  * @param {Object} headers — request headers
  * @returns {{ valid: boolean, reason?: string }}
  */
 function verifyYellowCardWebhook(rawBody, headers) {
   const secret = getYellowCardSecret();
   if (!secret) {
-    return { valid: true, reason: 'no_secret_configured' };
+    return { valid: false, reason: 'no_secret_configured' };
   }
 
   const signature =
@@ -106,7 +111,7 @@ function verifyYellowCardWebhook(rawBody, headers) {
 /**
  * Generic webhook verification — auto-detects source
  * @param {string} source — 'xreserve' | 'yellowcard'
- * @param {string} rawBody
+ * @param {string|Buffer} rawBody
  * @param {Object} headers
  * @returns {{ valid: boolean, reason?: string }}
  */
@@ -121,7 +126,7 @@ function verifyWebhook(source, rawBody, headers) {
   }
 }
 
-module.exports = {
+export {
   verifyHmac,
   verifyXReserveWebhook,
   verifyYellowCardWebhook,

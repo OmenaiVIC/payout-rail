@@ -14,6 +14,7 @@
  */
 
 import crypto from 'node:crypto';
+import { verifyHmac } from './webhookVerifier.js';
 
 const YELLOW_CARD_API_URL = process.env.YELLOW_CARD_API_URL || 'https://api.yellowcard.io/business';
 const YELLOW_CARD_API_KEY = process.env.YELLOW_CARD_API_KEY || '';
@@ -113,6 +114,9 @@ export function signWebhook(payload, secret = YELLOW_CARD_WEBHOOK_SECRET) {
 /**
  * Verify a webhook signature against the expected HMAC
  *
+ * Delegates to the canonical verifier in webhookVerifier.js — there is exactly
+ * one HMAC implementation in the codebase.
+ *
  * @param {string|Buffer} payload — raw request body
  * @param {string} signature — signature from webhook header (may include 'sha256=' prefix)
  * @param {string} secret — webhook signing secret
@@ -120,12 +124,7 @@ export function signWebhook(payload, secret = YELLOW_CARD_WEBHOOK_SECRET) {
  */
 export function verifyWebhookSignature(payload, signature, secret = YELLOW_CARD_WEBHOOK_SECRET) {
   if (!secret || !signature) return false;
-  const expected = signWebhook(payload, secret);
-  const cleanSig = signature.replace('sha256=', '');
-  if (typeof crypto !== 'undefined' && crypto.timingSafeEqual) {
-    return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(cleanSig, 'hex'));
-  }
-  return expected === cleanSig;
+  return verifyHmac(payload, signature, secret);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

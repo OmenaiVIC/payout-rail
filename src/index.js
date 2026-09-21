@@ -17,7 +17,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*', credentials: true }));
-app.use(express.json());
+// Capture the raw body BEFORE parsing so webhook HMACs verify over the exact bytes sent.
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });

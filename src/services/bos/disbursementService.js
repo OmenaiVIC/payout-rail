@@ -7,6 +7,7 @@
 import { randomUUID } from 'crypto';
 import { DisbursementState, TERMINAL_STATES } from './types.js';
 import { executeTransition, getValidNextStates } from './stateMachine.js';
+import { recordWebhookPayload } from './evidenceCollector.js';
 
 // USDCx has 6 decimal places; amount_usdcx is expressed in base units.
 const USDCX_DECIMALS = 6;
@@ -438,9 +439,17 @@ export async function getPipelineSummary() {
 
 /**
  * Handle a Yellow Card webhook (payout status update)
- * Idempotent: processes the webhook and advances the disbursement if applicable
+ * Idempotent: processes the webhook and advances the disbursement if applicable.
+ *
+ * A `completed` webhook only advances from `yellowcard_payout_submitted`; any
+ * later delivery for the same payout is acknowledged but does NOT advance again
+ * (no double-transition on duplicates).
+ *
+ * @param {Object} payload
+ * @param {Object} [options]
+ * @param {boolean} [options.signatureValid] — set true only after HMAC verification
  */
-export async function handleYellowCardWebhook(payload) {
+export async function handleYellowCardWebhook(payload, { signatureValid = false } = {}) {
   const log = ctx().getLogger('disbursement:webhook');
   const db = ctx().getDb();
 
@@ -466,6 +475,15 @@ export async function handleYellowCardWebhook(payload) {
     return { processed: false, reason: 'unknown payout_id' };
   }
 
+  // ── Record the verified payload into the evidence chain ────────────────
+  recordWebhookPayload({
+    db,
+    disbursementId: ref.disbursement_id,
+    source: 'yellowcard',
+    payload,
+    signatureValid,
+  }).catch((err) => log.warn({ id: ref.disbursement_id, error: err.message }, 'Evidence recording failed'));
+
   if (TERMINAL_STATES.has(ref.status)) {
     log.info({ payout_id: payoutId, status: ref.status }, 'Disbursement already terminal');
     return { processed: false, reason: 'already terminal' };
@@ -475,6 +493,11 @@ export async function handleYellowCardWebhook(payload) {
   const webhookStatus = payload.status?.toLowerCase();
 
   if (webhookStatus === 'completed') {
+    // Idempotent: only a payout that is still awaiting confirmation advances.
+    if (ref.status !== DisbursementState.YELLOWCARD_PAYOUT_SUBMITTED) {
+      log.info({ payout_id: payoutId, status: ref.status }, 'Webhook already applied — ignoring delivery');
+      return { processed: false, reason: `already applied (status: ${ref.status})` };
+    }
     const result = await advanceDisbursement(ref.disbursement_id);
     log.info({ payout_id: payoutId, result }, 'Webhook processed (completed)');
     return { processed: true, result };
