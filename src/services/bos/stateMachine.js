@@ -268,6 +268,39 @@ export async function executeTransition(disbursement, toState, context, override
     };
   }
 
+  // ── Claim the transition (optimistic concurrency) ───────────────────
+  // The `AND status = $2` predicate in the WHERE clause is a compare-and-swap,
+  // NOT an accidental condition: the row is only claimed while it still sits in
+  // `fromState`. A concurrent advance (pipeline tick, webhook delivery, retry)
+  // that already moved the row affects 0 rows here, so we bail out as a benign
+  // no-op BEFORE any side-effect runs. Without this, two overlapping workers
+  // could both pass the guard and both broadcast the burn.
+  const db = context.getDb();
+  const claim = await db.run(
+    `UPDATE disbursements
+     SET status = $1,
+         updated_at = NOW(),
+         last_heartbeat_at = NOW(),
+         retry_count = CASE WHEN $1 = $2 THEN retry_count + 1 ELSE retry_count END,
+         error_message = NULL
+     WHERE id = $3 AND status = $2`,
+    [toState, fromState, disbursement.id]
+  );
+
+  if (claim.changes === 0) {
+    log.warn(
+      { id: disbursement.id, from: fromState, to: toState, error_code: 'u8293' },
+      'Transition already applied by a concurrent process — benign no-op'
+    );
+    return {
+      success: false,
+      error: 'already advanced',
+      error_code: 'u8293',
+      new_state: null,
+      already_advanced: true,
+    };
+  }
+
   // ── Execute action ──────────────────────────────────────────────────
   let actionDetails;
   try {
@@ -277,11 +310,12 @@ export async function executeTransition(disbursement, toState, context, override
       { id: disbursement.id, from: fromState, to: toState, error: err.message },
       'Action failed during transition'
     );
-    // Record error on the disbursement record
-    const db = context.getDb();
+    // Roll back the claim so a subsequent retry can re-attempt from fromState,
+    // and record the error — same observable behaviour as an action failure
+    // that never claimed the row (row left in source state + error message).
     await db.run(
-      `UPDATE disbursements SET error_message = $1, last_error = $2, updated_at = NOW() WHERE id = $3`,
-      [err.message, err.message, disbursement.id]
+      `UPDATE disbursements SET status = $1, error_message = $2, last_error = $3, updated_at = NOW() WHERE id = $4 AND status = $5`,
+      [fromState, err.message, err.message, disbursement.id, toState]
     );
     return {
       success: false,
@@ -292,19 +326,7 @@ export async function executeTransition(disbursement, toState, context, override
   }
 
   // ── Write state change to DB ────────────────────────────────────────
-  const db = context.getDb();
   const mergedDetails = { ...actionDetails, ...override };
-
-  await db.run(
-    `UPDATE disbursements
-     SET status = $1,
-         updated_at = NOW(),
-         last_heartbeat_at = NOW(),
-         retry_count = CASE WHEN $1 = $2 THEN retry_count + 1 ELSE retry_count END,
-         error_message = NULL
-     WHERE id = $3`,
-    [toState, fromState, disbursement.id]
-  );
 
   // Merge extra fields if provided (e.g., external_tx_id, preflight_result)
   const extraFields = [];

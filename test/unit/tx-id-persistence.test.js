@@ -46,6 +46,7 @@ const def = (overrides = {}) => ({
 describe('G-05: submitBurn persists external_tx_id on the disbursement row', () => {
   it('lands the burn tx id in external_tx_id via the whitelist', async () => {
     const db = createFakeDb();
+    db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
     const ctx = createTestCtx({ db, adapters });
 
@@ -71,6 +72,7 @@ describe('G-05: submitBurn persists external_tx_id on the disbursement row', () 
 describe('G-05: burn_submitted → burn_confirmed regression (dead-end)', () => {
   it('passes when the tx id is on the row and the chain confirms', async () => {
     const db = createFakeDb();
+    db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
     const ctx = createTestCtx({ db, adapters });
 
@@ -93,6 +95,7 @@ describe('G-05: burn_submitted → burn_confirmed regression (dead-end)', () => 
 describe('G-05: attestation_id / release_id / payout_id persist for their legs', () => {
   it('requestAttestation persists attestation_id', async () => {
     const db = createFakeDb();
+    db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
     const ctx = createTestCtx({ db, adapters });
 
@@ -115,6 +118,7 @@ describe('G-05: attestation_id / release_id / payout_id persist for their legs',
 
   it('submitDestinationRelease persists release_id', async () => {
     const db = createFakeDb();
+    db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
     // Guard re-validates the attestation against xReserve.
     adapters.xreserve.getAttestationStatus = async () => ({ status: 'confirmed', attestation_id: 'att-1' });
@@ -140,6 +144,7 @@ describe('G-05: attestation_id / release_id / payout_id persist for their legs',
 
   it('submitYellowCardPayout persists payout_id and clears the amount_ngn_expected throw', async () => {
     const db = createFakeDb();
+    db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
     const adapters = createMockAdapters();
     adapters.xreserve.getReleaseStatus = async () => ({ status: 'confirmed', release_id: 'rel-1' });
     seedExternalRefs(db, ref('release_id', 'rel-1'));

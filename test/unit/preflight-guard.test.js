@@ -75,6 +75,7 @@ test('preflightPassed tolerates the legacy plain string verdict (old format)', (
 
 test('executeTransition persists preflight_result as JSON on the disbursement row', async () => {
   const db = createFakeDb();
+  db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
   const ctx = createTestCtx({ db, adapters: createMockAdapters() });
 
   // initiated→preflight_check runs runPreflightCheck which returns preflight_result
@@ -106,6 +107,7 @@ test('bypass edge disbursement_initiated→burn_submitted no longer exists', () 
 
 test('executeTransition escalates to manual_review when the preflight verdict is failing', async () => {
   const db = createFakeDb();
+  db.when(/UPDATE disbursements\s+SET status = \$1/, () => ({ changes: 1, rows: [] }));
   const ctx = createTestCtx({ db, adapters: createMockAdapters() });
 
   const result = await executeTransition(
