@@ -95,6 +95,8 @@ No provider-side idempotency keys were touched (`burn:${id}` / `release:${id}` /
 | After commit 2 (G-14) | 64 | 63 | 0 | 1 | — |
 | **After commit 3 (duplicates + CAS)** | **72** | **71** | **0** | **1** | Postgres-gated |
 
+> **Note:** the 72/71 figure reflects a bare `node --test` invocation, which includes 3 non-test helper files under `test/helpers/`. The authoritative count for the `npm test` command is **69 tests / 68 pass / 0 fail / 1 skip**.
+
 ### 4.2 Full final suite (`node --test --test-concurrency=1`)
 
 ```
