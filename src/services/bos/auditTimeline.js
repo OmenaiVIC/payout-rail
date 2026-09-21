@@ -6,9 +6,16 @@
  */
 
 /**
+ * BOS Audit Timeline — human-readable timeline of disbursement events
+ *
+ * Builds a chronological timeline from the disbursement_audit table,
+ * enriched with external status snapshots and evidence references.
+ */
+
+/**
  * Human-readable labels for BOS states
  */
-const STATE_LABELS = {
+export const STATE_LABELS = {
   disbursement_initiated: { label: 'Disbursement created', icon: '📋', category: 'start' },
   preflight_check: { label: 'Safety checks passed', icon: '✅', category: 'safety' },
   manual_review_required: { label: 'Sent for manual review', icon: '👀', category: 'safety' },
@@ -24,8 +31,8 @@ const STATE_LABELS = {
   failed: { label: 'Disbursement failed', icon: '❌', category: 'end' },
   cancelled: { label: 'Disbursement cancelled', icon: '🚫', category: 'end' },
 };
-
 /**
+
  * Build a timeline for a disbursement
  *
  * @param {Object} deps
@@ -33,7 +40,7 @@ const STATE_LABELS = {
  * @param {string} deps.disbursementId
  * @returns {Promise<{ timeline: Array<Object>, summary: Object }>}
  */
-async function buildTimeline({ db, disbursementId }) {
+export async function buildTimeline({ db, disbursementId }) {
   // Fetch audit events
   const auditResult = await db.all(`
     SELECT from_state, to_state, reason, metadata, created_at
@@ -46,10 +53,10 @@ async function buildTimeline({ db, disbursementId }) {
 
   // Fetch external status snapshots
   const snapshotResult = await db.all(`
-    SELECT external_system, status, raw_response, created_at
+    SELECT source, status, raw_response, captured_at
     FROM external_status_snapshots
     WHERE disbursement_id = $1
-    ORDER BY created_at ASC
+    ORDER BY captured_at ASC
   `, [disbursementId]);
 
   const snapshots = snapshotResult || [];
@@ -87,13 +94,13 @@ async function buildTimeline({ db, disbursementId }) {
 
     // Attach matching snapshots
     const matchingSnapshots = snapshots.filter((s) => {
-      const snapTime = new Date(s.created_at).getTime();
+      const snapTime = new Date(s.captured_at).getTime();
       const eventTime = new Date(event.created_at).getTime();
       return Math.abs(snapTime - eventTime) < 60000; // within 1 minute
     });
     if (matchingSnapshots.length > 0) {
       entry.externalStatuses = matchingSnapshots.map((s) => ({
-        system: s.external_system,
+        system: s.source,
         status: s.status,
       }));
     }
@@ -148,7 +155,7 @@ async function buildTimeline({ db, disbursementId }) {
  * @param {Array} timeline
  * @returns {string}
  */
-function formatTimelineText(timeline) {
+export function formatTimelineText(timeline) {
   const lines = [];
   for (const entry of timeline) {
     const time = entry.timestamp
@@ -164,5 +171,3 @@ function formatTimelineText(timeline) {
   }
   return lines.join('\n');
 }
-
-module.exports = { buildTimeline, formatTimelineText, STATE_LABELS };

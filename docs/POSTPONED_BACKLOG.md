@@ -56,3 +56,27 @@ For the CineX-side log entry, see `CineX/docs/POSTPONED_BACKLOG.md`.
 - Payout-rail's migration runner tracks applied migrations (`schema_migrations` table),
   so the `exchange_rates` seed insert runs exactly once — it cannot accumulate
   duplicate rows across restarts. No additional mitigation is required in this repo.
+
+---
+
+## C-07 — `fallbackPoller.js` deleted in Sprint 1.5 (G-14)
+
+- **Status:** SUPERSEDED — module deleted. Logged per change-control rule for D/E items.
+- **Capability removed:** A polling fallback that periodically queried external APIs
+  (`stacks.getTransactionStatus`, `xreserve.getAttestationStatus`/`getReleaseStatus`,
+  `yellowcard.getPayoutStatus`) when webhooks failed or were delayed, advancing or
+  failing disbursements based on external status.
+- **Reason for removal (Sprint 1.5):** The module used CommonJS (`module.exports`) in an
+  ESM package and would crash on import; it had zero importers. Its job is already
+  covered by (a) the existing confirmation guards (`transitionGuards.js`), which query
+  the same adapters during normal advancement, and (b) the already-wired `stuckStateReaper`
+  and `reconciliationWorker`. No concrete need for an independent poller exists in
+  Sprint 2 or 3.
+- **Why deferred:** Redundant today; kept as a backlog item only for completeness.
+- **Resurrection conditions (Sprint 3+):** If Yellow Card webhook-delivery SLAs ever
+  require proactive status polling (i.e. when a missed webhook can strand real money),
+  rebuild the poller as an ESM module wired into `pipelineWorker` with its own scheduler.
+  All provider methods it needs already exist on the adapters.
+- **Dependencies:** adapter methods exist; proof-of-life requires a real webhook-flake
+  scenario.
+- **Estimated complexity to resurrect:** Medium (a new worker + test suite).
