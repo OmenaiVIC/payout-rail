@@ -6,7 +6,11 @@
   "description": "BOS (Bridge Orchestration Service) payout subsystem extracted from CineX backend — burn → attestation → destination release → payout state machine on Postgres.",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "test:unit": "node --test --test-concurrency=1 \"test/unit/**/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.js\"",
+    "test:integration": "node --test --test-concurrency=1 \"test/integration/**/*.test.js\""
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
