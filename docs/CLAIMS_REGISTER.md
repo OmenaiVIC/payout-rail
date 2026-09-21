@@ -20,8 +20,8 @@
 | "14-state state machine (`PREFLIGHT_CHECK` → `settled`)" | `README.md:7` | `types.js:18-33` defines 14 states | IMPLEMENTED |
 | "workers advancing every non-terminal disbursement one step per tick" | `README.md:8` | `pipelineWorker.js:100-152` | IMPLEMENTED |
 | `BOS_PIPELINE_BATCH_SIZE` default **50** | `README.md:48`, `.env.example:27` | Code default is **25** (`pipelineWorker.js:19`) | FALSE (doc drift; code default 25) |
-| `BOS_POLL_INTERVAL_MS` default **30000** | `README.md:49`, `.env.example:28` | Code default is **60000** (`fallbackPoller.js:11`) | FALSE (doc drift; module is dead) |
-| `BOS_MAX_POLL_ATTEMPTS` default **10** | `README.md:50`, `.env.example:29` | Code default is **30** (`fallbackPoller.js:12`) | FALSE (doc drift; module is dead) |
+| `BOS_POLL_INTERVAL_MS` default **30000** | `README.md:49`, `.env.example:28` | Env var **removed** in Sprint 1.5 (G-14) with `fallbackPoller.js` (dead module, zero importers) | RESOLVED (doc drift source deleted; see `docs/SPRINT_1_5_REPORT.md` D3) |
+| `BOS_MAX_POLL_ATTEMPTS` default **10** | `README.md:50`, `.env.example:29` | Env var **removed** in Sprint 1.5 (G-14) with `fallbackPoller.js` (dead module, zero importers) | RESOLVED (doc drift source deleted; see `docs/SPRINT_1_5_REPORT.md` D3) |
 | "14 states, 28+ transitions" | `README.md:63` | 45 registered transitions (23 explicit + 22 generic, `stateMachine.js`) | PARTIAL (28+ is an undercount; count is odd to audit) |
 | "manual_review_queue as the human-in-the-loop escape hatch" | `README.md:74-75` | `manual_review_queue` table exists but is **never written**; `manual_review` is a status only | PARTIAL / PLANNED |
 | "circuit breaker guarding the payout leg" | `README.md:75` | Only `CircuitBreaker.check()` is called; `recordFailure/recordSuccess/trip/reset` never called (`preflight.js:12`, grep) | PARTIAL (breaker cannot trip from real outcomes — no failures are ever recorded) |

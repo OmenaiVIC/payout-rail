@@ -46,8 +46,6 @@ Express app for `@vercel/node` instead of calling `listen()`.
 | `BOS_RECIPIENT_REGISTRY` | | `null` | `permissive` → permissive registry; anything else → null registry |
 | `BOS_PIPELINE_INTERVAL_MS` | | `30000` | Pipeline worker tick (ms) |
 | `BOS_PIPELINE_BATCH_SIZE` | | `50` | Max disbursements advanced per tick |
-| `BOS_POLL_INTERVAL_MS` | | `30000` | Fallback poller interval (ms) |
-| `BOS_MAX_POLL_ATTEMPTS` | | `10` | Max fallback poll attempts |
 | `BOS_DAILY_PAYOUT_CAP_USD` | | `10000` | Daily payout cap (USD) |
 | `BOS_MAX_PER_DISBURSEMENT_USD` | | `1000` | Per-disbursement cap (USD) |
 | `DEFAULT_USDCX_NGN_RATE` | | `1650` | Seed exchange rate when table is empty |
@@ -84,6 +82,45 @@ as the human-in-the-loop escape hatch and a circuit breaker guarding the payout 
 | `stuckStateReaper` | 60s | stuck disbursements → `manual_review`/`failed` |
 | `reconciliationWorker` | 5 min | drift detection |
 | `pipelineWorker` | 30s | one state step per disbursement per tick |
+
+## Idempotency & concurrency
+
+Duplicate financial actions are prevented at three independent layers:
+
+1. **Deterministic idempotency key (create).** Each disbursement's
+   `idempotency_key` is derived from stable inputs only — never a timestamp:
+   `disbursement:<sha256(source_reference | source_application | amount_usdcx | recipient_bank_account)>`.
+   Retrying a create with the same inputs returns the existing row instead of
+   inserting a second payout. Enforcement is a named UNIQUE index
+   (`idx_disbursements_idempotency_unique`, migration 006).
+2. **Per-leg adapter keys.** Provider-side keys are already disbursement-scoped
+   and stable across retries: `burn:${disbursement.id}`, `release:${disbursement.id}`,
+   `payout:${disbursement.id}`.
+3. **Optimistic concurrency on every state transition.** `executeTransition`
+   claims the row with `UPDATE ... WHERE id = $N AND status = $fromState`
+   **before** running the transition's side-effect. The `status` predicate is a
+   compare-and-swap, not an accidental condition: a concurrent advance that
+   already moved the row affects 0 rows, so it bails as a benign
+   `already advanced` no-op and the side-effect never runs twice.
+
+Coverage for duplicate webhook deliveries, worker ticks/restarts, retries, and
+concurrent advances lives in `test/unit/duplicate-handling.test.js`.
+
+## Module dispositions
+
+Sprint 1.5 (see `docs/SPRINT_1_5_REPORT.md`):
+
+- **`fallbackPoller.js` — deleted (G-14).** Had zero importers; its polling job is
+  covered by the confirmation guards + `stuckStateReaper` + `reconciliationWorker`.
+  Removed with it: the two documented-but-dead env vars
+  `BOS_POLL_INTERVAL_MS` / `BOS_MAX_POLL_ATTEMPTS` (see `docs/POSTPONED_BACKLOG.md`
+  C-07 for resurrection conditions).
+- **`auditTimeline.js` — converted to ESM (G-14).** Now `export`s and imports
+  cleanly; snapshot join fixed to the real `external_status_snapshots` columns
+  (`source` / `captured_at`). Route wiring is deferred to Sprint 4 when the
+  evidence-chain contract is set.
+- **`webhookVerifier.js` — converted to ESM (Sprint 0.5, G-06).** The single
+  verifier for Yellow Card signatures; fail-open removed.
 
 ## Routes
 
