@@ -4,7 +4,7 @@
  * All operations are idempotent under duplicate worker execution
  */
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { DisbursementState, TERMINAL_STATES } from './types.js';
 import { executeTransition, getValidNextStates } from './stateMachine.js';
 import { recordWebhookPayload } from './evidenceCollector.js';
@@ -29,6 +29,25 @@ export function computeAmountNgnExpected({ amount_usdcx_base_units, rate }) {
   const usdcxAmount = Number(amount_usdcx_base_units) / 10 ** USDCX_DECIMALS;
   const ngn = usdcxAmount * Number(rate);
   return Math.round(ngn * NGN_MINOR_UNITS_PER_NAIRA);
+}
+
+/**
+ * Derive the deterministic idempotency key for a disbursement.
+ *
+ * Stable across retries: a digest over fixed inputs only, never a timestamp.
+ * Identical inputs always collide, so a duplicate create is recognised as the
+ * same disbursement and rejected by the UNIQUE(idempotency_key) constraint.
+ */
+export function deriveDisbursementIdempotencyKey({
+  source_reference,
+  source_application = 'campaign',
+  amount_usdcx,
+  recipient_bank_account,
+}) {
+  const canonical = [source_reference, source_application, amount_usdcx, recipient_bank_account]
+    .map((v) => String(v ?? '').trim())
+    .join('|');
+  return `disbursement:${createHash('sha256').update(canonical).digest('hex')}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,7 +162,12 @@ export async function initiateDisbursement({
     rate: exchangeRate,
   });
 
-  const idempotency_key = `disbursement:${source_reference}:${amount_usdcx}:${Date.now()}`;
+  const idempotency_key = deriveDisbursementIdempotencyKey({
+    source_reference,
+    source_application,
+    amount_usdcx,
+    recipient_bank_account,
+  });
 
   // ── Idempotency check ────────────────────────────────────────────────
   const existing = await db.get(
