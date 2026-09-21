@@ -9,6 +9,19 @@ import { DisbursementState as S, TERMINAL_STATES } from './types.js';
 import * as guards from './transitionGuards.js';
 import * as actions from './transitionActions.js';
 
+/**
+ * Action-returned fields that are written onto the `disbursements` row.
+ * Anything not listed here is recorded in the audit log but never persisted
+ * to the row — which is how external tx ids were previously dropped.
+ */
+const PERSISTED_ACTION_FIELDS = {
+  settled_at: (v) => v,
+  failed_at: (v) => v,
+  cancelled_at: (v) => v,
+  manual_review_at: (v) => v,
+  preflight_result: (v) => JSON.stringify(v),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Transition table: key = `${from}→${to}`
 // Each entry: { description, guard, action }
@@ -18,12 +31,12 @@ const TRANSITIONS = new Map([
   // ── Preflight (§8 SAFE Forwarding) ─────────────────────────────────────
   [`${S.DISBURSEMENT_INITIATED}→${S.PREFLIGHT_CHECK}`, {
     description: 'Run financial safety gates before burn phase',
-    guard:  guards.preflightPassed,
+    guard:  guards.preflightRequested,
     action: actions.runPreflightCheck,
   }],
   [`${S.PREFLIGHT_CHECK}→${S.BURN_SUBMITTED}`, {
     description: 'Preflight passed — proceed with USDCx burn',
-    guard:  guards.disbursementExists,
+    guard:  guards.preflightPassed,
     action: actions.submitBurn,
   }],
   [`${S.PREFLIGHT_CHECK}→${S.MANUAL_REVIEW}`, {
@@ -38,11 +51,6 @@ const TRANSITIONS = new Map([
   }],
 
   // ── Burn lifecycle ──────────────────────────────────────────────────────
-  [`${S.DISBURSEMENT_INITIATED}→${S.BURN_SUBMITTED}`, {
-    description: 'Broadcast USDCx burn tx to Stacks chain',
-    guard:  guards.disbursementExists,
-    action: actions.submitBurn,
-  }],
   [`${S.BURN_SUBMITTED}→${S.BURN_CONFIRMED}`, {
     description: 'Burn tx confirmed on Stacks chain (≥1 block)',
     guard:  guards.isBurnConfirmed,
@@ -232,6 +240,22 @@ export async function executeTransition(disbursement, toState, context, override
       { id: disbursement.id, from: fromState, to: toState, error_code: guardResult.error_code },
       `Guard rejected transition: ${guardResult.reason}`
     );
+
+    // Fail-closed routing: a guard may demand escalation instead of a stall
+    // (e.g. a failed preflight must reach manual review, not block the burn forever).
+    if (
+      guardResult.action === 'MANUAL_REVIEW_REQUIRED' &&
+      toState !== S.MANUAL_REVIEW &&
+      getTransition(fromState, S.MANUAL_REVIEW)
+    ) {
+      log.warn(
+        { id: disbursement.id, from: fromState, attempted: toState, error_code: guardResult.error_code },
+        'Guard requires manual review — escalating'
+      );
+      const escalated = await executeTransition(disbursement, S.MANUAL_REVIEW, context, {}, triggeredBy);
+      return { ...escalated, escalated_from_rejection: true };
+    }
+
     return {
       success: false,
       error: guardResult.reason,
@@ -278,16 +302,15 @@ export async function executeTransition(disbursement, toState, context, override
     [toState, fromState, disbursement.id]
   );
 
-  // Merge extra fields if provided (e.g., external_tx_id, error_message)
+  // Merge extra fields if provided (e.g., external_tx_id, preflight_result)
   const extraFields = [];
   const extraValues = [];
   let paramIdx = 4;
-  for (const [field, value] of Object.entries(mergedDetails)) {
-    if (['settled_at', 'failed_at', 'cancelled_at', 'manual_review_at'].includes(field)) {
-      extraFields.push(`${field} = $${paramIdx}`);
-      extraValues.push(value);
-      paramIdx++;
-    }
+  for (const [field, encode] of Object.entries(PERSISTED_ACTION_FIELDS)) {
+    if (mergedDetails[field] === undefined) continue;
+    extraFields.push(`${field} = $${paramIdx}`);
+    extraValues.push(encode(mergedDetails[field]));
+    paramIdx++;
   }
   if (extraFields.length > 0) {
     await db.run(

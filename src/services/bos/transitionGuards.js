@@ -161,11 +161,54 @@ export async function hasValidExchangeRate(_disbursement, ctx) {
  * disbursement_initiated → preflight_check
  * Guard: disbursement exists (no external calls needed — preflight action does the real checks)
  */
-export function preflightPassed(disbursement, _ctx) {
+export function preflightRequested(disbursement, _ctx) {
   if (!disbursement) {
     return { ok: false, error_code: 'u8201', reason: 'Disbursement not found' };
   }
   return { ok: true };
+}
+
+/**
+ * preflight_check → burn_submitted
+ * Guard: the persisted preflight verdict says the safety gates passed.
+ *
+ * Fail-closed: a missing or non-passing verdict blocks the burn and asks the
+ * executor to escalate to manual review (see `action`).
+ */
+export function preflightPassed(disbursement, _ctx) {
+  if (!disbursement) {
+    return { ok: false, error_code: 'u8201', reason: 'Disbursement not found' };
+  }
+
+  let verdict = disbursement.preflight_result;
+  if (typeof verdict === 'string') {
+    try {
+      verdict = JSON.parse(verdict);
+    } catch {
+      verdict = null;
+    }
+  }
+
+  if (!verdict) {
+    return {
+      ok: false,
+      error_code: 'u8202',
+      reason: 'No preflight verdict on record — burn blocked',
+      action: 'MANUAL_REVIEW_REQUIRED',
+    };
+  }
+
+  if (verdict.ok !== true) {
+    return {
+      ok: false,
+      error_code: 'u8203',
+      reason: `Preflight did not pass (${verdict.action || 'gates failed'}) — burn blocked`,
+      action: 'MANUAL_REVIEW_REQUIRED',
+      gate_results: verdict.gate_results || [],
+    };
+  }
+
+  return { ok: true, details: { preflight_result: verdict } };
 }
 
 /**

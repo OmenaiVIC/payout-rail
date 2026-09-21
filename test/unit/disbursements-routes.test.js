@@ -65,6 +65,16 @@ function createRowStore(db) {
     return { changes: 1, rows: [] };
   });
 
+  db.when(/UPDATE disbursements SET preflight_result = \$4/, ({ params }) => {
+    if (row) row.preflight_result = params[0];
+    return { changes: 1, rows: [] };
+  });
+
+  db.when(/UPDATE disbursements SET manual_review_at = \$4/, ({ params }) => {
+    if (row) row.manual_review_at = params[0];
+    return { changes: 1, rows: [] };
+  });
+
   db.when(/UPDATE disbursements SET error_message/, () => ({ changes: 1, rows: [] }));
 
   return {
@@ -173,6 +183,8 @@ test('disbursement routes', async (t) => {
     assert.equal(disbursement.recipient_bank_code, '044');
     // create runs the first transition (initiated → preflight_check)
     assert.equal(disbursement.status, 'preflight_check');
+    // the preflight verdict was persisted onto the row (JSON-stringified by serializer)
+    assert.equal(JSON.parse(store.row.preflight_result).ok, false);
 
     const read = await fetch(`${base}/api/disbursements/${disbursement.id}`, { headers });
     assert.equal(read.status, 200);
@@ -180,15 +192,19 @@ test('disbursement routes', async (t) => {
     assert.equal(readBody.disbursement.id, disbursement.id);
     assert.ok(Array.isArray(readBody.disbursement.audit_log));
 
+    // G-01 fail-closed: the failing preflight verdict blocks the burn and
+    // escalates to manual review rather than stalling or burning.
     const advanced = await fetch(`${base}/api/disbursements/${disbursement.id}/advance`, {
       method: 'POST', headers,
     });
     assert.equal(advanced.status, 200);
     const advBody = await advanced.json();
     assert.equal(advBody.result.success, true);
-    assert.equal(advBody.result.new_state, 'burn_submitted');
-    assert.equal(advBody.disbursement.status, 'burn_submitted');
-    assert.equal(store.row.status, 'burn_submitted');
+    assert.equal(advBody.result.new_state, 'manual_review');
+    assert.equal(advBody.result.escalated_from_rejection, true);
+    assert.equal(advBody.disbursement.status, 'manual_review');
+    assert.equal(store.row.status, 'manual_review');
+    assert.equal(db.countMatching(/INSERT INTO external_refs/), 0, 'burn was never submitted');
   });
 
   await t.test('returns 404 for an unknown id', async () => {

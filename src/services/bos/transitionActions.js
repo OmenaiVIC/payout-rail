@@ -46,9 +46,11 @@ export async function runPreflightCheck(disbursement, ctx) {
   }
 
   return {
-    preflight_result: result.ok ? 'passed' : 'failed',
-    action: result.action || null,
-    gate_results: result.gate_results || [],
+    preflight_result: {
+      ok: result.ok === true,
+      action: result.action || null,
+      gate_results: result.gate_results || [],
+    },
   };
 }
 
