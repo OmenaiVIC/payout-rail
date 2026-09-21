@@ -16,7 +16,7 @@
 
 | Claim | Location | Evidence | Status |
 |---|---|---|---|
-| "burn → xReserve attestation → destination release → Yellow Card payout → NGN" pipeline | `README.md:6` | State machine + adapters encode this lifecycle | IMPLEMENTED (partially; release leg is simulated) |
+| "burn → xReserve attestation → destination release → Yellow Card payout → NGN" pipeline | `README.md:6` | State machine + adapters encode this lifecycle | IMPLEMENTED (release model corrected in Sprint 2 — observed, not simulated; see `docs/SPRINT_2_REPORT.md` §3) |
 | "14-state state machine (`PREFLIGHT_CHECK` → `settled`)" | `README.md:7` | `types.js:18-33` defines 14 states | IMPLEMENTED |
 | "workers advancing every non-terminal disbursement one step per tick" | `README.md:8` | `pipelineWorker.js:100-152` | IMPLEMENTED |
 | `BOS_PIPELINE_BATCH_SIZE` default **50** | `README.md:48`, `.env.example:27` | Code default is **25** (`pipelineWorker.js:19`) | FALSE (doc drift; code default 25) |
@@ -48,8 +48,8 @@
 | `disbursementService.js:4`: "All operations are idempotent under duplicate worker execution" | `disbursementService.js:4` | Idempotency keys: `disbursement:{source_ref}:{amt}:{Date.now()}` (`:81`) — timestamp makes retries non-deterministic (C-04); burn/release/payout action keys are stable per disbursement | PARTIAL / FALSE for create (C-04) |
 | `transitionActions.js:4`: "All actions are idempotent" | `transitionActions.js:4` | `submitBurn` uses `burn:{disbursement.id}`; `releaseDestination` no-op; `submitSend` uses `payout:{disbursement.id}` | IMPLEMENTED for the executed actions (create still C-04) |
 | `StacksAdapter.js`: "burn … (SIP-010 burn)" | `StacksAdapter.js:217-218` | Broadcasts `burn` on `USDCX_CONTRACT` (`usdcx` token) | IMPLEMENTED but target entrypoint UNVERIFIED vs current docs |
-| `xreserveAdapter.js:10-19`: "xReserve is an ON-CHAIN protocol … burn tx IS the attestation trigger … releaseDestination → no-op" | `xreserveAdapter.js:6-19` | Accurate self-description of the simulated adapter | IMPLEMENTED (as documented) / SIMULATED externally |
-| `xreserveAdapter.js:205-218`: "There is no on-chain 'release' call … returns … status 'confirmed'" | `xreserveAdapter.js:205-218` | No-op confirmed | SIMULATED (release unverifiable) |
+| `xreserveAdapter.js:10-19`: "xReserve is an ON-CHAIN protocol … burn tx IS the attestation trigger … releaseDestination → no-op" | `xreserveAdapter.js:6-19` | Header rewritten in Sprint 2: the fabrication claims are removed; the adapter now OBSERVES (`observeDestinationRelease`) and never fabricates a `confirmed` release | RESOLVED (Sprint 2 — model corrected; external surface still SIMULATED / UNVERIFIED) |
+| `xreserveAdapter.js:205-218`: "There is no on-chain 'release' call … returns … status 'confirmed'" | `xreserveAdapter.js:205-218` | The no-op `confirmed` release is REMOVED in Sprint 2; replaced by the 4-value `release_status` observation surface | RESOLVED (Sprint 2 — removed) |
 | `yellowcardAdapter.js:6-8`: "Auth: YcHmacV1 scheme — HMAC-SHA256 over (timestamp + apiKey + bodyHash)" | `yellowcardAdapter.js:6-8` | `_computeAuth` matches its own comment (`:55-67`) but public provider docs (docs.yellowcard.engineering) describe `YcHmacV1 {apiKey}:{signature}` + `X-YC-Timestamp` over (timestamp + path + method [+ body]) | UNVERIFIED / INCORRECT-vs-docs (see below) |
 | `yellowcardAdapter.js:13`: "Reference: docs/yellowcard-api-reference.md" | `yellowcardAdapter.js:13` | File **does not exist** in repo | MISSING (blocker for verification) |
 | `yellowcardAdapter.js:21`: `YELLOW_CARD_ENV` config | `yellowcardAdapter.js:21` | Env read but **never used** in the adapter | DEAD VARIABLE |
@@ -78,7 +78,7 @@
 | Claim | Evidence | Status |
 |---|---|---|
 | Stacks/USDCx withdrawal works per contracts | Canonical model: burn via `usdcx-v1` entry point; BOS burns on `usdcx` token contract | UNVERIFIED (needs ABI/chain verification) |
-| xReserve attestation/release semantics | No provider credentials; modeled only; release is synthetic | UNVERIFIED |
+| xReserve attestation/release semantics | No provider credentials; modeled only. Sprint 2 removed the fabricated `releaseDestination()`/`getReleaseStatus()` pair — release is now the observed `release_status` surface (UNVERIFIED stub) | MODEL CORRECTED / UNVERIFIED EXTERNAL (see `docs/SPRINT_2_REPORT.md`) |
 | Yellow Card auth scheme | Public docs describe `YcHmacV1 {apiKey}:{signature}` + `X-YC-Timestamp`; adapter sends a JSON-envelope `Authorization` without `X-YC-Timestamp`, message = timestamp+apiKey+hex(bodyHash) (**no path, no method**) | INCORRECT/OUTDATED vs docs (pending the missing `docs/yellowcard-api-reference.md`) |
 | Yellow Card send endpoint/payload | Adapter: `POST /send`, body `{amount, currency, recipientType, recipient, callbackUrl}` + `X-Idempotency-Key`. Docs reference updated Sends terminology / fields (e.g. `sequenceId`, `destination`) | UNVERIFIED / potentially OUTDATED |
 | Yellow Card sandbox | Base URL `https://sandbox.api.yellowcard.io/business` hard-coded default production; no credentials | SANDBOX-CAPABLE (no sandbox evidence) |
@@ -88,6 +88,7 @@
 - **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes (3/6).
 - **FALSE / DOC-DRIFT:** README env defaults (batch size, poll interval, poll attempts); "gated by CRON_SECRET" for all monitoring; transition counts in headers; `external_tx_id` write claim; creation works claim; signature verification active claim.
 - **DEAD:** `fallbackPoller`, `webhookVerifier`, `auditTimeline` (ESM/CommonJS break + not imported).
-- **SIMULATED:** xReserve attestation (Hiro proxy), xReserve release (no-op), mock adapters.
+- **SIMULATED:** xReserve attestation (Hiro proxy); xReserve destination-release **observation surface**
+  (records exactly what it is told; the fabricated no-op was removed in Sprint 2); mock adapters.
 - **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint.
 - **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; release-write tables; manual-review queue/resolution API; disbursement create/approve/recover API; tests.

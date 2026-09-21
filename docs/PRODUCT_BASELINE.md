@@ -4,6 +4,12 @@
 > This document describes **what the repository actually is and does**, with `file:line` evidence.
 > It intentionally does not describe intended behavior as implemented behavior.
 
+> **Sprint 2 amendment (2026-09-21) — settlement model corrected (G-08).**
+> §4 rows 6–7 and §6 are superseded: the fabricated `releaseDestination()`/`getReleaseStatus()` pair is
+> **removed**. The app now records a `release_status` observation (`unobserved | observed_pending |
+> observed_confirmed | observed_failed`) and reaches `destination_release_confirmed` only on observed
+> confirmation. Rows below that still describe the no-op remain as history — see `docs/SPRINT_2_REPORT.md`.
+
 ---
 
 ## 1. Executive summary
@@ -14,7 +20,8 @@ over PostgreSQL:
 
 1. **Burn** — `StacksAdapter.burnUsdcx()` broadcasts a USDCx burn on Stacks.
 2. **Attestation** — `xreserveAdapter.requestAttestation()` proxies a Hiro tx-status lookup.
-3. **Destination release** — `xreserveAdapter.releaseDestination()` is a **no-op** returning `confirmed`.
+3. **Destination release** — removed in Sprint 2 (G-08): the app **observes** external settlement
+   evidence (`release_status`) instead of fabricating a release (see the Sprint 2 amendment + §6).
 4. **Yellow Card payout** — `yellowcardAdapter.submitSend()` is a real REST client whose auth scheme
    and request payload are **unverified against current provider docs**.
 
@@ -72,7 +79,7 @@ running app.
 | `src/config/chainConfig.js` | Network-aware Stacks config (USDCx, Hiro, explorer, PAYOUT_API_BASE_URL) |
 | `src/routes/webhooks.js` | `POST /yellowcard`, `POST /yellowcard/test` |
 | `src/routes/bosMonitoring.js` | Monitoring/dashboard/cron endpoints |
-| `src/services/bos/types.js` | 14-state enum, terminal/failed sets, JSDoc types |
+| `src/services/bos/types.js` | 15-state enum, terminal/failed sets, JSDoc types, `ReleaseStatus` enum |
 | `src/services/bos/stateMachine.js` | Transition registry + `executeTransition` |
 | `src/services/bos/transitionGuards.js` | Guards (incl. unused `hasValidExchangeRate`) |
 | `src/services/bos/transitionActions.js` | Side-effect actions + `external_refs` upsert |
@@ -83,7 +90,7 @@ running app.
 | `src/services/bos/twoPersonApproval.js` | 2-of-N approvals (no route exposes it) |
 | `src/services/bos/RecipientRegistry.js` | Null / Permissive registries |
 | `src/services/bos/StacksAdapter.js` | Hiro client + USDCx burn broadcast |
-| `src/services/bos/xreserveAdapter.js` | Attestation proxy + **no-op release** |
+| `src/services/bos/xreserveAdapter.js` | Attestation proxy + **observation-only release surface** (Sprint 2: `observeDestinationRelease`, no release call) |
 | `src/services/bos/yellowcardAdapter.js` | Yellow Card REST client |
 | `src/services/bos/bridgeAdapterFactory.js` | Adapter selection + in-memory mock |
 | `src/services/bos/pipelineWorker.js` | 30s advance loop (batch 25, interval 30000) |
@@ -113,7 +120,7 @@ Express app (src/index.js)
   │
   ├─ DisbursementService (orchestrator)
   │    initiate → advance → retry → recover → handleYellowCardWebhook
-  ├─ StateMachine (45 registered transitions: 23 explicit + 22 generic)
+  ├─ StateMachine (48 registered transitions: explicit + generic)
   │    ├─ Guards  (transitionGuards.js)
   │    └─ Actions (transitionActions.js)
   │                └─ evidenceCollector (recordApiResponse/TxHash/GateResult)
@@ -127,7 +134,7 @@ Express app (src/index.js)
   │
   ├─ Adapters (bridgeAdapterFactory)
   │    ├─ stacks     → StacksAdapter (Hiro + burn tx)
-  │    ├─ xreserve   → xreserveAdapter (Hiro tx proxy + no-op release)
+  │    ├─ xreserve   → xreserveAdapter (Hiro tx proxy + observation-only surface)
   │    └─ yellowcard → yellowcardAdapter (REST client)
   │
   └─ Persistence (database.js → Postgres / Neon)
@@ -140,12 +147,11 @@ Express app (src/index.js)
 ```
 
 Notes:
-- `disbursements.external_tx_id / attestation_id / release_id / payout_id`
-  (`migrations/004_bos_e2e.sql:28-37`) are **never written** by application code — all external
-  identifiers live in `external_refs`.
-- `executeTransition` persists only `settled_at/failed_at/cancelled_at/manual_review_at` from action
-  returns (`stateMachine.js:282-297`); `external_tx_id`, `attestation_id`, `release_id`, `payout_id`
-  returned by actions are discarded.
+- `disbursements.external_tx_id / attestation_id / payout_id / release_status` are written by Sprint 0.5/1.5/2
+  transitions via the `PERSISTED_ACTION_FIELDS` whitelist (`stateMachine.js:22-32`). `release_id` was the
+  synthetic id of the removed `releaseDestination()` call and is **retired** (never written again).
+- `executeTransition` persists only whitelisted fields from action returns (`stateMachine.js:22-32`);
+  anything else is recorded in the audit log but never persisted to the row.
 - Monitoring routes are authenticated with `CRON_SECRET` **only on the four `/cron/*` endpoints**
   (`bosMonitoring.js:17-23,190-232`). All other endpoints (`/pipeline`, `/active`, `/alerts`,
   `/manual-review`, `/run`, `/workers`, `/workers/pipeline/run`, `/disbursement/:id/timeline`,
@@ -166,8 +172,8 @@ Notes:
 | 3 | Burn | `submitBurn` → `StacksAdapter.burnUsdcx` (`StacksAdapter.js:224-237`) | Broadcasts `burn` on `USDCX_CONTRACT` (`usdcx` token contract). Needs `PAYOUT_TX_SIGNING_KEY` or throws (`StacksAdapter.js:40,226`). Tx id stored in `external_refs` (`transitionActions.js:73`); `disbursements.external_tx_id` stays `NULL`. |
 | 4 | Burn confirm | `isBurnConfirmed` (`transitionGuards.js:26-38`) | Rejects: `No external tx_id on record` (column `NULL`). **Dead-end** → reaper → `manual_review`. |
 | 5 | Attestation | `requestAttestation` → `xreserveAdapter` | Only reachable if burn confirmed (isn't). Proxies Hiro tx status; `attestation_id = tx_id` (`xreserveAdapter.js:169-178`). Never populates `disbursements.attestation_id`. |
-| 6 | Release | `releaseDestination` | Returns `{ release_id: attestation_id, status: 'confirmed' }` **immediately, no external call** (`xreserveAdapter.js:220-229`). Synthetic; destination is a logged `creator_btc_address` (`transitionActions.js:167`). |
-| 7 | Release confirm | `getReleaseStatus` | Same Hiro tx proxy (`xreserveAdapter.js:242-255`). |
+| 6 | Release | ~~`releaseDestination`~~ → **removed in Sprint 2.** `beginReleaseObservation` parks `destination_release_unobserved` with `release_status='unobserved'` and makes **no** adapter call (`transitionActions.js:157-168`). The external settlement surface releases USDC to the destination wallet on its own; the app records `observeDestinationRelease` evidence exactly as observed (`transitionActions.js:177-203`). |
+| 7 | Release confirm | ~~`getReleaseStatus` (Hiro tx proxy)~~ → **removed in Sprint 2.** `destination_release_observed → destination_release_confirmed` requires a fresh `observed_confirmed` observation (`transitionGuards.js:110-119`); the payout guard additionally requires the persisted `release_status='observed_confirmed'` (`transitionGuards.js:145-153`). |
 | 8 | Yellow Card | `submitYellowCardPayout` | **Unreachable**: throws if `amount_ngn_expected` missing/zero (`transitionActions.js:216-218`), which is always. Also requires gate/2PA guard `destinationReleasedForPayout` (`transitionGuards.js:101-118`). |
 | 9 | Webhook confirm | `handleYellowCardWebhook` → `advanceDisbursement` | Route exists; `express.json()` global middleware means **no raw body, no signature verification** (`index.js:19`, `webhooks.js:17-25`). |
 | 10 | Settled | `markSettled` | Terminal state reachable only via an unverifiable path or manual review resolution. |
@@ -186,7 +192,7 @@ No code path writes `disbursements.amount_ngn_expected`, `exchange_rate`, `exter
 | Stacks — event handling / withdrawal tracking | `on_chain_events` table | **NOT IMPLEMENTED** — table exists (`001:182-197`), no code writes or reads it | grep |
 | USDCx burn usability | — | **INCOMPLETE** — silent skip if signing key missing; real funds require key + gas | `StacksAdapter.js:36-50,225-226` |
 | xReserve — attestation | `requestAttestation`/`getAttestationStatus` | **SIMULATED** — proxy of Hiro tx status, no actual attestation service call | `xreserveAdapter.js:14-19,169-203` |
-| xReserve — release | `releaseDestination`/`getReleaseStatus` | **SIMULATED / PLACEHOLDER** — no-op returns `confirmed`; release to BTC address is a fiction | `xreserveAdapter.js:220-255` |
+| xReserve — release | `observeDestinationRelease` (**Sprint 2**) | **OBSERVATION MODEL** — the fabricated `releaseDestination`/`getReleaseStatus` pair is removed; the surface returns evidence only (`unobserved` default, source `xreserve.unverified`), external truth UNVERIFIED | `xreserveAdapter.js:20-22,85-128` |
 | xReserve — health | `healthCheck` | **REAL** (Hiro reachability + contract presence) | `xreserveAdapter.js:262-296` |
 | Yellow Card — payout initiation | `submitSend` (POST `/send`) | **REAL REST client**; request shape + auth **UNVERIFIED/OUTDATED** vs current public docs | `yellowcardAdapter.js:147-176` |
 | Yellow Card — status | `lookupSend`, `listSends`, `getSendFee`, `resolveBankAccount`, `getChannels`, `getRates` | **REAL REST client** (calls implemented); exact endpoints/auth unverified | `yellowcardAdapter.js:185-387` |
@@ -216,19 +222,21 @@ Canonical withdrawal lifecycle (current Stacks/USDCx + xReserve model, per publi
 6. The app's role is to **initiate the burn and observe status**; attestation and release are
    external, off-chain processes the app should query/record — not re-implement.
 
-| Canonical step | BOS implementation | Verdict |
+| Canonical step | BOS implementation (Sprint 2, corrected) | Verdict |
 |---|---|---|
-| Burn on `usdcx-v1` entrypoint | Burn called on `USDCX_CONTRACT` (`usdcx` token) direct | **UNVERIFIED / POSSIBLY INCORRECT** target contract |
-| Burn triggers attestation | Burn tx id is captured (in `external_refs`) | Correct direction |
+| Burn on `usdcx-v1` entrypoint | Burn called on `USDCX_CONTRACT` (`usdcx` token) via `chainConfig.getBurnTarget()` seam | **UNVERIFIED / POSSIBLY INCORRECT** target contract (G-09) — seam extracted for a one-site correction |
+| Burn triggers attestation | Burn tx id is captured (in `external_refs` + `disbursements.external_tx_id`) | Correct direction |
 | Stacks attestation service signs intent | Not modeled | absent |
 | xReserve verifies burn, issues attestation | Simulated as Hiro tx-status proxy (`attestation_id = tx_id`) | **SIMULATED** |
-| xReserve releases USDC to destination USDC wallet | `releaseDestination()` no-op returns `confirmed`; releases to a **BTC address** placeholder | **INCORRECT MODEL** — app models an external process as an application-controlled operation; also asserts confirmation it cannot prove |
-| App observes/records external evidence | Evidence writes exist for API responses/tx hashes | Partial |
-| BOS cannot independently prove release | Not acknowledged; state machine assumes `confirmed` | **Correction requirement** |
+| xReserve releases USDC to destination USDC wallet | **MODEL CORRECTED (Sprint 2):** the fabricated `releaseDestination()` is removed. The app records an observation (`release_status` = `unobserved`/`observed_pending`/`observed_confirmed`/`observed_failed`) returned by `xreserveAdapter.observeDestinationRelease`, and reaches `destination_release_confirmed` only on `observed_confirmed` (guard + persisted column). The real observation surface is a fail-closed UNVERIFIED stub (`xreserve.unverified`) | **MODEL CORRECTED / UNVERIFIED EXTERNAL** (see `docs/SPRINT_2_REPORT.md`) |
+| App observes/records external evidence | `observeDestinationRelease` payload recorded via `recordApiResponse` + observation external_ref (`transitionActions.js:177-239`) | Implemented |
+| BOS cannot independently prove release | Acknowledged: no-evidence rows park in `destination_release_unobserved` and time out to `manual_review` via the reaper (`stuckStateReaper.js:17-24`) | Corrected — never asserts unproven confirmation |
 
-**Correction requirement (per Prompt 0 §4):** the destination-release leg must be re-modeled so the
-app **observes and queries** external settlement status (and any claim step) rather than fabricating
-confirmation; the BTC release target is factually wrong for the canonical USDCx flow.
+**Correction requirement (per Prompt 0 §4) — STATUS: IMPLEMENTED in Sprint 2.** The destination-release
+leg is re-modeled so the app **observes and records** external settlement status instead of fabricating
+confirmation; the BTC release target ("`creator_btc_address`") is gone with the removed action. What
+remains UNVERIFIED is the real external surface itself (xReserve attestation → off-chain USDC release);
+with the stub, a real deployment parks in `unobserved` and times out — by design.
 
 ---
 
@@ -253,16 +261,16 @@ Per Prompt 0 §6 ("Run the existing test suite / record why it cannot run"):
 
 ## 8. What is / is not implemented
 
-**Implemented (verified):** DB layer + tracked migrations; 14-state enum; 45-transition registry;
+**Implemented (verified):** DB layer + tracked migrations; 15-state enum; 48-transition registry;
 initiate/advance/retry/recover/webhook orchestration functions; 6 payout gates; 2-person-approval +
-circuit-breaker classes (check-only); 3 real adapters (Stacks real, xReserve simulated, Yellow Card
-REST); 4 background workers; monitoring checks + alerting + dashboard queries; webhook route.
+circuit-breaker classes (check-only); 3 real adapters (Stacks real, xReserve simulated + observation-only
+release, Yellow Card REST); 4 background workers; monitoring checks + alerting + dashboard queries; webhook route.
 
 **Partially implemented:** preflight gating (records, doesn't block); manual review (status only);
 reconciliation (burn leg inert due to C-01); evidence (3 of 6 recorders used).
 
-**Mocked / simulated:** xReserve attestation + release (Hiro proxy + no-op); mock adapter factory
-(`BRIDGE_ADAPTER_ENV=mock`).
+**Mocked / simulated:** xReserve attestation (Hiro proxy); the destination-release **observation surface**
+(records exactly what the mock reports, never fabricates); mock adapter factory (`BRIDGE_ADAPTER_ENV=mock`).
 
 **Incomplete:** inbound signature verification; public disbursement API; manual-review resolution;
 `amount_ngn_expected`/`exchange_rate` population; write-active use of 6 schema tables.

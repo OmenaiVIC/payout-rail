@@ -80,3 +80,33 @@ For the CineX-side log entry, see `CineX/docs/POSTPONED_BACKLOG.md`.
 - **Dependencies:** adapter methods exist; proof-of-life requires a real webhook-flake
   scenario.
 - **Estimated complexity to resurrect:** Medium (a new worker + test suite).
+
+---
+
+## Sprint 2 additions (G-08 observation model — deferred, not built)
+
+### S2-1 — Observation recency / freshness column (`release_observed_at`) is declined this sprint
+
+- **Status:** POSTPONED (proposed, not implemented). Design note: placing recency into a column
+  invites stale-data unlocks; the Sprint 2 payout guard instead **re-observes the external surface at
+  transition time** (a fresh poll every tick), so a separate recency column is not needed to keep the
+  fail-closed property. Proposed for a monitoring/verification sprint: expose observation `observed_at`
+  on the disbursement and alert on staleness.
+- **Resurrect if:** the real observation surface is slow/expensive to poll (throttling), or a dashboard
+  needs last-seen evidence per disbursement.
+
+### S2-2 — Extra release-monitoring improvements (flagged collateral D5, scope-limited)
+
+Per the approved D5 guardrail, Sprint 2 changed **only** the state reference in
+`monitorJob.checkDestinationReleaseFailures`. Deferred monitoring hardening:
+
+- Distinct alert severities for `destination_release_unobserved` (no evidence yet — warning) vs
+  `destination_release_observed` (evidence exists — critical), instead of one critical level.
+- A "pre-SLA advisory" alert when a disbursement approaches the reaper threshold but has not yet been
+  reaped (surfaces visibility without a state change).
+- Exposing `release_status` in the monitoring dashboard queries and alert details.
+- Alert message that names the observation status (`unobserved`/`observed_pending`) and its age, so the
+  ops channel shows whether any evidence has ever existed.
+
+**Resurrect if:** a monitoring sprint or go-live readiness review asks for operator-grade release-leg
+visibility; all are additive to the current (correct but coarse) single check.

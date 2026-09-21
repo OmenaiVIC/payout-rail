@@ -91,9 +91,15 @@
   but canonical USDCx settlement releases USDC to an EVM/USDC destination wallet — **there is no BTC leg**.
 - **Risk:** the state machine records "release confirmed" without proof; a disbursement could be advanced
   to the payout leg even though the source USDC never actually reached its destination.
-- **Fix direction:** model the app as **observer** — poll/verify actual attestation + destination-wallet
-  status provided by the operator/xReserve, or add a verified claim step; if the destination-release
-  state cannot be proven, route to manual review rather than `confirmed`.
+- **Status (Sprint 2): RESOLVED-IN-MODEL.** The fabricated `releaseDestination()`/`getReleaseStatus()`
+  pair is removed. The app records a `release_status` observation (`unobserved | observed_pending |
+  observed_confirmed | observed_failed`) from `xreserveAdapter.observeDestinationRelease`, reaches
+  `destination_release_confirmed` only on `observed_confirmed` (guard + persisted column, `u8234/u8226`
+  fail-closed), and no-evidence rows time out to `manual_review` via the reaper. The **real external
+  settlement surface remains UNVERIFIED** (the adapter returns a fail-closed `xreserve.unverified` stub)
+  — see `docs/SPRINT_2_REPORT.md`. External verification is a later, authorized, verification-only sprint.
+- **Fix direction (verified externally, future):** wire the real `observeDestinationRelease` read to the
+  actual attestation/settlement surface so `observed_confirmed` means the destination wallet received USDC.
 
 ### G-09  Stacks burn entrypoint is UNVERIFIED against contract docs  [P1]
 - **Evidence:** `StacksAdapter.burnUsdcx` calls `burn` on `USDCX_CONTRACT` (the `usdcx` token contract)
@@ -126,11 +132,14 @@
 - **Fix direction (from C-04):** derive a deterministic key from stable inputs, enforce via
   `UNIQUE(idempotency_key)`, and thread the same key through burn → attestation → release → payout.
 
-### G-12  `external_tx_id / attestation_id / release_id / payout_id` columns exist on `disbursements` but are never written  [P2]
-- **Evidence:** `004_bos_e2e.sql:28-37` adds the columns; grep shows no UPDATE/INSERT of them; actions
-  return them but `executeTransition` drops them (`stateMachine.js:286`).
-- **Fix direction:** either write them on submit/confirm (single source of truth for guards/reconciliation)
-  or remove the columns; then guard on `external_refs`, not the column.
+### G-12  `external_tx_id / attestation_id / release_id / payout_id` columns exist on `disbursements` but were never written  [P2]
+- **Evidence (original):** `004_bos_e2e.sql:28-37` adds the columns; grep showed no UPDATE/INSERT of them; actions
+  returned them but `executeTransition` dropped them (`stateMachine.js:286`).
+- **Status (Sprint 0.5/1.5/2):** RESOLVED. `external_tx_id`, `attestation_id`, `payout_id`, and (new)
+  `release_status` are written by their transitions via the `PERSISTED_ACTION_FIELDS` whitelist
+  (`stateMachine.js:22-32`); `release_id` was the synthetic id of the removed `releaseDestination()` call
+  and is deliberately retired (never written again).
+- **Fix direction:** (resolved) keep guards reading the row columns as the single source of truth.
 
 ### G-13  Circuit breaker never records failures (check-only)  [P2]
 - **Evidence:** `recordFailure/recordSuccess/trip/reset` defined (`circuitBreaker.js:25-100`) but never
