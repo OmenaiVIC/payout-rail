@@ -6,7 +6,7 @@ Purpose: capture the commercial thinking behind Payout Rail so it is not lost du
 
 Created: 2026-09-21.
 
-> This document is a hypothesis, not a claim. Nothing here is verified. It exists so that the technical work has a commercial north star, and so that Sprint 9 (commercial model) has raw material to formalize.
+> This document is a hypothesis, not a claim. Nothing here is verified. It exists so that the technical work has a commercial north star, and so that Sprint 9 (docs/prompts/11_SPRINT_9_COMMERCIAL_MODEL.md, currently STUB) has raw material to formalize once the technical evidence base exists
 
 \---
 
@@ -204,11 +204,11 @@ The realistic path over 18–24 months:
 
 ### Trademark Research Findings (2026-09-21)
 
-| Name | Risk | Finding |
-|---|---|---|
-| **Payrail** | **High** | Active USPTO proceedings with Payrailz, LLC (marks PAYRAILZ) and Payrails GmbH (marks PAYRAILS). Also active commercial use in Indonesia (PT KAI RailPay), Serbia (Raiffeisenbank RailPay), Singapore (Railpays Pte Ltd), and US fintech. |
-| **Sendrail** | **High** | Existing open-source project `MukundaKatta/sendrail` with live landing page. Describes itself as "Stablecoin rails from the US and GCC to India and the Philippines." Direct prior use in the same commercial space. |
-| **Settlr** | **Moderate** | Existing entities: (1) Settlr Zurich — post-trade management automation for financial services, backed by Tenity/Julius Baer [citation:1]; (2) Settlr — stablecoin billing for cannabis industry [citation:5]; (3) Figma escrow prototype (likely inactive) [citation:9]. No dominant player, but name is not clean. |
+| Name         | Risk         | Finding                                                                                                                                                                                                                                                                                                              |
+| ------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Payrail**  | **High**     | Active USPTO proceedings with Payrailz, LLC (marks PAYRAILZ) and Payrails GmbH (marks PAYRAILS). Also active commercial use in Indonesia (PT KAI RailPay), Serbia (Raiffeisenbank RailPay), Singapore (Railpays Pte Ltd), and US fintech.                                                                            |
+| **Sendrail** | **High**     | Existing open-source project `MukundaKatta/sendrail` with live landing page. Describes itself as "Stablecoin rails from the US and GCC to India and the Philippines." Direct prior use in the same commercial space.                                                                                                 |
+| **Settlr**   | **Moderate** | Existing entities: (1) Settlr Zurich — post-trade management automation for financial services, backed by Tenity/Julius Baer [citation:1]; (2) Settlr — stablecoin billing for cannabis industry [citation:5]; (3) Figma escrow prototype (likely inactive) [citation:9]. No dominant player, but name is not clean. |
 
 ### Decision
 
@@ -218,11 +218,11 @@ The realistic path over 18–24 months:
 
 ### Candidate Names (None Cleared)
 
-| Candidate | Notes |
-|---|---|
-| **Settlr** | Moderate risk — existing fintech use in Zurich [citation:1], cannabis payments [citation:5]. Pronunciation: "settler" or "settle-er". |
-| **Settlerail** | Not yet checked |
-| **Sendline** | Not yet checked |
+| Candidate      | Notes                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Settlr**     | Moderate risk — existing fintech use in Zurich [citation:1], cannabis payments [citation:5]. Pronunciation: "settler" or "settle-er". |
+| **Settlerail** | Not yet checked                                                                                                                       |
+| **Sendline**   | Not yet checked                                                                                                                       |
 
 ### Next Steps for Naming
 
@@ -242,7 +242,6 @@ The realistic path over 18–24 months:
 - Do not use "Sendrail" or "Railpay" in any public-facing material.
 - Do not invest in branding, domains, or marketing under any unverified name.
 - Do not assume a name is available because it does not appear in a quick online search [citation:3].
-
 
 \## 11. Open Questions Requiring Validation
 
@@ -300,4 +299,4 @@ Any change to the commercial hypothesis goes through `docs/PRODUCT\_CHANGE\_CONT
 
 \- Sprint 8 output: capability matrix, evidence register
 
-\- Sprint 9: commercial model (to be created)
+\ Sprint 9: - `docs/prompts/11_SPRINT_9_COMMERCIAL_MODEL.md`
