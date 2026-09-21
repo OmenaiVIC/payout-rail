@@ -20,6 +20,10 @@ const PERSISTED_ACTION_FIELDS = {
   cancelled_at: (v) => v,
   manual_review_at: (v) => v,
   preflight_result: (v) => JSON.stringify(v),
+  external_tx_id: (v) => v,
+  attestation_id: (v) => v,
+  release_id: (v) => v,
+  payout_id: (v) => v,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
