@@ -62,6 +62,8 @@ function ctx() {
  * @param {number} params.amount_usdcx       — base units (6 decimals)
  * @param {string} params.creator_address    — recipient Stacks address
  * @param {string} [params.creator_btc_address] — BTC address for xReserve release
+ * @param {string} params.recipient_bank_account — NGN payout account number (required)
+ * @param {string} params.recipient_bank_code    — NGN payout bank code (required)
  * @param {Object} [params.ngn_recipient]    — Yellow Card recipient details
  * @param {Object} [params.metadata]         — arbitrary JSONB
  * @returns {Promise<Object>} — the created (or existing) disbursement record
@@ -73,11 +75,30 @@ export async function initiateDisbursement({
   amount_usdcx,
   creator_address,
   creator_btc_address = null,
+  recipient_bank_account,
+  recipient_bank_code,
   ngn_recipient = null,
   metadata = {},
 }) {
   const log = ctx().getLogger('disbursement:initiate');
   const db = ctx().getDb();
+
+  // ── Validate required payout destination (fail closed) ────────────────
+  const missing = [];
+  if (!recipient_bank_account || String(recipient_bank_account).trim() === '') {
+    missing.push('recipient_bank_account');
+  }
+  if (!recipient_bank_code || String(recipient_bank_code).trim() === '') {
+    missing.push('recipient_bank_code');
+  }
+  if (missing.length > 0) {
+    const err = new Error(`Missing required recipient bank details: ${missing.join(', ')}`);
+    err.error_code = 'missing_recipient_bank_details';
+    err.statusCode = 400;
+    err.details = { missing };
+    throw err;
+  }
+
   const idempotency_key = `disbursement:${source_reference}:${amount_usdcx}:${Date.now()}`;
 
   // ── Idempotency check ────────────────────────────────────────────────
@@ -96,14 +117,14 @@ export async function initiateDisbursement({
     `INSERT INTO disbursements (
        id, idempotency_key, source_reference, source_application,
        amount_usd, amount_usdcx,
-       creator_address, creator_btc_address, ngn_recipient,
-       status, metadata,
+       creator_address, creator_btc_address, recipient_bank_account, recipient_bank_code,
+       ngn_recipient, status, metadata,
        last_heartbeat_at, created_at, updated_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW(),NOW())`,
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW(),NOW())`,
     [
       id, idempotency_key, source_reference, source_application,
       amount_usd, amount_usdcx,
-      creator_address, creator_btc_address,
+      creator_address, creator_btc_address, recipient_bank_account, recipient_bank_code,
       ngn_recipient ? JSON.stringify(ngn_recipient) : null,
       DisbursementState.DISBURSEMENT_INITIATED,
       JSON.stringify(metadata),
