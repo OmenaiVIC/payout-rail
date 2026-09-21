@@ -23,6 +23,7 @@ import { init, initiateDisbursement, advanceDisbursement, getDisbursement } from
 import { DisbursementState as S } from '../../src/services/bos/types.js';
 import { createFakeDb } from '../helpers/fakeDb.js';
 import { createMockAdapters } from '../helpers/mockAdapters.js';
+import { createMockEvidenceSource } from '../helpers/mockExternalEvidence.js';
 import { createTestCtx } from '../helpers/ctx.js';
 
 const VALID_CREATOR = 'SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7';
@@ -45,7 +46,7 @@ const EXPECTED_NGN_KOBO = Math.round(50 * RATE) * 100; // 8_250_000
 function buildHarness() {
   const db = createFakeDb();
   const adapters = createMockAdapters();
-  const releaseEvidenceByDisbursement = new Map();
+  const evidenceSource = createMockEvidenceSource();
 
   // xReserve attestation guard requires status 'confirmed' (mock default is 'complete').
   adapters.xreserve.getAttestationStatus = async (id) => {
@@ -56,16 +57,7 @@ function buildHarness() {
   // G-08: evidence exists only where the test scripts it; default = unobserved.
   adapters.xreserve.observeDestinationRelease = async (params) => {
     adapters.xreserve.calls.observeDestinationRelease.push(params);
-    return {
-      release_status: releaseEvidenceByDisbursement.get(params.disbursement_id) || 'unobserved',
-      source: 'mock-evidence',
-      evidence: null,
-      observed_at: new Date().toISOString(),
-    };
-  };
-  const emitReleaseEvidence = (disbursementId, releaseStatus) => {
-    releaseEvidenceByDisbursement.set(disbursementId, releaseStatus);
-    return releaseEvidenceByDisbursement;
+    return evidenceSource.observe(params);
   };
 
   const row = {
@@ -138,7 +130,7 @@ function buildHarness() {
   db.when(/as total_disbursed/, () => ({ total_disbursed: 0 }));
   db.when(/as total_funded/, () => ({ total_funded: AMOUNT_USDCX }));
 
-  return { db, adapters, row, emitReleaseEvidence };
+  return { db, adapters, row, emitReleaseEvidence: evidenceSource.emit };
 }
 
 /**
