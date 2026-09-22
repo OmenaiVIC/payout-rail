@@ -20,6 +20,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { init, initiateDisbursement, advanceDisbursement, getDisbursement } from '../../src/services/bos/disbursementService.js';
+import { generateSettlementReceipt } from '../../src/services/bos/settlementReceipt.js';
 import { DisbursementState as S } from '../../src/services/bos/types.js';
 import { createFakeDb } from '../helpers/fakeDb.js';
 import { createMockAdapters } from '../helpers/mockAdapters.js';
@@ -110,6 +111,59 @@ function buildHarness() {
     tokens.forEach((m, i) => { row[m[1]] = params[i]; });
     return { changes: 1, rows: [] };
   });
+
+  // ── Settlement-receipt reconstruction tables (plan §9). ──────────────────
+  // The receipt must be reconstructable from persisted rows only. FakeDb does
+  // not materialize SQL, so the harness replays exactly what the pipeline
+  // INSERTed/upserted into the read-only tables the receipt queries: external
+  // refs (with the JSONB metadata merge the real upsert performs) and the
+  // evidence chain. Snapshots/on-chain/webhook journal are empty here — the
+  // mock pipeline never emitted those, so the receipt must not invent them.
+
+  // Replay INSERTed external refs (upsert semantics: metadata merged per key).
+  const materializedRefs = () => {
+    const merged = new Map();
+    let seq = 0;
+    for (const c of db.calls) {
+      if (!/^INSERT INTO external_refs/.test(c.sql)) continue;
+      const [disbursementId, system, idType, idValue, metadataJson] = c.params;
+      const key = `${system}|${idType}`;
+      if (!merged.has(key)) {
+        seq += 1;
+        merged.set(key, {
+          id: seq,
+          disbursement_id: disbursementId,
+          external_system: system,
+          identifier_type: idType,
+          identifier_value: idValue,
+          metadata: {},
+        });
+      }
+      const r = merged.get(key);
+      r.metadata = { ...r.metadata, ...(metadataJson ? JSON.parse(metadataJson) : {}) };
+    }
+    return Array.from(merged.values());
+  };
+
+  // Replay the evidence chain in insert order (id ASC ≈ created_at ASC here).
+  const materializedEvidence = () =>
+    db.calls
+      .filter((c) => /INSERT INTO disbursement_evidence/.test(c.sql))
+      .map((c, i) => ({
+        id: i + 1,
+        evidence_type: c.params[2],
+        evidence_data: c.params[3],
+        recorded_by: c.params[4],
+        created_at: null,
+      }));
+
+  // Registered BEFORE the external_refs guard lookup so these win: the guard
+  // regex is a prefix of the receipt's ORDER BY variant.
+  db.when(/FROM external_refs\s+WHERE disbursement_id = \$1\s+ORDER BY id ASC/, () => materializedRefs());
+  db.when(/FROM external_status_snapshots\s+WHERE disbursement_id = \$1\s+ORDER BY/, () => []);
+  db.when(/FROM on_chain_events\s+WHERE disbursement_id = \$1\s+ORDER BY/, () => []);
+  db.when(/FROM yellow_card_webhook_events\s+WHERE disbursement_id = \$1\s+ORDER BY/, () => []);
+  db.when(/FROM disbursement_evidence\s+WHERE disbursement_id = \$1\s+ORDER BY created_at ASC, id ASC/, () => materializedEvidence());
 
   // ── Rate lookup: a valid rate exists before create (G-04). ─────────────
   db.when(/SELECT rate FROM exchange_rates/, () => ({ rate: RATE }));
@@ -269,6 +323,27 @@ async function assertFullLifecycle({ db, adapters, row, emitReleaseEvidence }) {
   for (const secret of ['0123456789', 'campaign-1', VALID_CREATOR, VALID_BTC]) {
     assert.ok(!allEvidenceRaw.includes(secret), `evidence trail leaked: ${secret}`);
   }
+
+  // ── Sprint 4 settlement receipt (plan §9): the settled row must yield a
+  // complete, gap-free receipt built purely from the persisted evidence ─────
+  const receipt = await generateSettlementReceipt({ db, disbursementId: settled.id });
+  assert.deepEqual(receipt.gaps, [], `settled e2e reconstructs a complete receipt, got: ${JSON.stringify(receipt.gaps)}`);
+  assert.equal(receipt.bos_payout_id, settled.id);
+  assert.equal(receipt.final_status, 'settled');
+  assert.equal(receipt.reconstructed_from, 'evidence');
+  assert.equal(receipt.settlement_reference.provider, 'yellowcard');
+  assert.equal(receipt.settlement_reference.provider_payout_id, 'yc-mock-1');
+  assert.equal(receipt.settlement_reference.external_settlement_reference, 'yc-mock-1',
+    'provider settlement reference read back from the stored payout_data');
+  assert.equal(receipt.stacks_leg.burn_tx_hash, settled.external_tx_id, 'burn tx hash from the persisted row');
+  assert.equal(receipt.stacks_leg.attestation_id, 'att-mock-1', 'attestation id from the persisted row');
+  assert.equal(receipt.stacks_leg.attestation_status, 'confirmed', 'attestation status from transition evidence');
+  assert.equal(receipt.release_leg.release_status, 'observed_confirmed', 'release observation persisted to settlement');
+  assert.equal(receipt.provider_leg.status, 'confirmed');
+  assert.ok(receipt.provider_leg.payout_confirmed_at, 'payout confirmation time from the merged ref metadata');
+  assert.equal(receipt.provider_leg.ngn_amount, String(EXPECTED_NGN_KOBO));
+  assert.ok(receipt.timeline.initiated_at && receipt.timeline.settled_at, 'initiated + settled timestamps on the receipt');
+  assert.ok(receipt.evidence_refs.length >= TRANSITION_HOPS, 'every canonical hop reflected on the receipt');
 
   return settled;
 }

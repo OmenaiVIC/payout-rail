@@ -146,7 +146,14 @@ export async function generateSettlementReceipt({ db, disbursementId }) {
 
   // ── Settlement reference ──────────────────────────────────────────────────
   const lastWebhook = (webhooks || []).at(-1) || null;
+  const payoutDataRef = payRefMetadata?.payout_data
+    ? asObject(payRefMetadata.payout_data).reference
+      || asObject(payRefMetadata.payout_data).data?.reference
+      || asObject(payRefMetadata.payout_data).data?.id
+      || null
+    : null;
   const externalSettlementReference = payRefMetadata?.['external_settlement_reference']
+    || payoutDataRef
     || lastWebhook?.payment_id
     || (lastWebhook ? asObject(lastWebhook.payload).reference : null)
     || null;
