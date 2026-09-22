@@ -817,10 +817,7 @@ function parseExecute(sql, params) {
   const text = String(sql);
   const paramRefs = [];
   for (const m of text.matchAll(/\$(\d+)/g)) paramRefs.push(Number(m[1]));
-  const boundValues =
-    paramRefs.length > 0 && Math.max(...paramRefs) > params.length
-      ? [...new Set(paramRefs)].sort((a, b) => a - b).map(() => params.shift())
-      : paramRefs.map((n) => params[n - 1]);
+  const boundValues = paramRefs.map((n) => params[n - 1]);
   const statements = splitStatements(normalizeStatement(text)).filter(Boolean);
   if (statements.length === 0) return { changes: 0, rows: [] };
   let last;
