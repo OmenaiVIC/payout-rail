@@ -110,3 +110,33 @@ Per the approved D5 guardrail, Sprint 2 changed **only** the state reference in
 
 **Resurrect if:** a monitoring sprint or go-live readiness review asks for operator-grade release-leg
 visibility; all are additive to the current (correct but coarse) single check.
+
+---
+
+## Sprint 4 additions (evidence foundation 4a — tables dropped / superseded)
+
+### S4-1 — `relay_wallet_activity` dropped (4a, approved D/E disposition)
+
+- **Status:** CLOSED — table dropped in `migrations/008_sprint_4.sql`.
+- **Why it was kept until now:** Faithful copy of the upstream CineX schema at extraction;
+  the extraction scope was "preserve verbatim".
+- **Why it is dropped:** The table was write-dead — no code path ever inserts a row (verified
+  in Sprint 4: zero references outside the schema). The evidence story is now singular:
+  ledger of record is `disbursement_evidence` (+ `external_status_snapshots`,
+  `on_chain_events`, `yellow_card_webhook_events`), so a never-written relay-wallet table only
+  invited confusion about where chain evidence lives. `on_chain_events` covers the on-chain
+  tracking role.
+- **Resurrect if:** a relay-wallet auditing discipline is ever introduced (requires a real
+  writer + test coverage before it returns).
+
+### S4-2 — `config_snapshots` dropped (4a, approved D/E disposition)
+
+- **Status:** CLOSED — table dropped in `migrations/008_sprint_4.sql`.
+- **Why it was kept until now:** Faithful copy of the upstream CineX schema at extraction.
+- **Why it is dropped:** Write-dead (zero references outside the schema) and superseded by the
+  gate/transition evidence trail: preflight gates are recorded per gate in `payout_gates` with
+  matching `evidence_type = 'gate_result'` rows, and every successful transition writes a
+  canonical `transition` evidence record. A snapshot of configuration state added nothing not
+  already captured.
+- **Resurrect if:** change-management needs a dedicated before/after view of app configuration
+  at transition time.
