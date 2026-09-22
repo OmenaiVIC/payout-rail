@@ -7,7 +7,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { DisbursementState, TERMINAL_STATES } from './types.js';
 import { executeTransition, getValidNextStates } from './stateMachine.js';
-import { recordWebhookPayload } from './evidenceCollector.js';
+import { recordWebhookPayload, deriveWebhookEventId, hashPayload } from './evidenceCollector.js';
 
 // USDCx has 6 decimal places; amount_usdcx is expressed in base units.
 const USDCX_DECIMALS = 6;
@@ -499,14 +499,54 @@ export async function handleYellowCardWebhook(payload, { signatureValid = false 
     return { processed: false, reason: 'unknown payout_id' };
   }
 
-  // ── Record the verified payload into the evidence chain ────────────────
-  recordWebhookPayload({
-    db,
-    disbursementId: ref.disbursement_id,
-    source: 'yellowcard',
-    payload,
-    signatureValid,
-  }).catch((err) => log.warn({ id: ref.disbursement_id, error: err.message }, 'Evidence recording failed'));
+  // ── Record the verified payload into the evidence chain (awaited) ────────
+  // Guardrail (Sprint 4 interpretation #2): the write is best-effort AFTER
+  // verification, but a failure must never be silent — it is logged at ERROR
+  // with the disbursement id + evidence type. The webhook flow still proceeds.
+  try {
+    await recordWebhookPayload({
+      db,
+      disbursementId: ref.disbursement_id,
+      source: 'yellowcard',
+      payload,
+      signatureValid,
+    });
+  } catch (err) {
+    log.error(
+      { id: ref.disbursement_id, evidence_type: 'webhook_payload', error: err.message },
+      'Failed to record webhook evidence'
+    );
+  }
+
+  // ── Journal the delivery into yellow_card_webhook_events ─────────────────
+  // Only the sanitized summary goes into the NOT NULL payload column — never
+  // the raw body. The derived, redelivery-stable event id lands in payment_id
+  // (the existing column for the external id); source is captured by
+  // event_type, observed_at by created_at (DEFAULT NOW()). Best-effort write;
+  // failure is logged at ERROR, never thrown.
+  try {
+    const eventId = deriveWebhookEventId(payload);
+    await db.run(
+      `INSERT INTO yellow_card_webhook_events (disbursement_id, payment_id, event_type, payload, processed)
+       VALUES ($1, $2, 'yellowcard', $3, FALSE)`,
+      [
+        ref.disbursement_id,
+        eventId,
+        JSON.stringify({
+          v: 1,
+          payload_hash: `sha256:${hashPayload(payload)}`,
+          event_id: eventId,
+          verified: signatureValid,
+          status: payload.status || null,
+        }),
+      ]
+    );
+  } catch (err) {
+    log.error(
+      { id: ref.disbursement_id, evidence_type: 'webhook_events_journal', error: err.message },
+      'Failed to journal webhook delivery'
+    );
+  }
 
   if (TERMINAL_STATES.has(ref.status)) {
     log.info({ payout_id: payoutId, status: ref.status }, 'Disbursement already terminal');

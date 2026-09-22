@@ -89,7 +89,7 @@ function stableStringify(value) {
  * Deterministic sha256 over the stable canonical form of a payload.
  * Used for `payload_hash` — the payload itself is never stored.
  */
-export function hashPayload(value) {
+function hashPayload(value) {
   return createHash('sha256').update(stableStringify(value ?? null)).digest('hex');
 }
 
@@ -120,7 +120,7 @@ export function sanitize(value, depth = SANITIZE_MAX_DEPTH) {
  * Stable webhook event id across redeliveries of the same event.
  * Yellow Card payloads may carry `event_id` or `reference`; falls back to null.
  */
-export function deriveWebhookEventId(payload) {
+function deriveWebhookEventId(payload) {
   return payload?.event_id || payload?.reference || null;
 }
 
@@ -441,4 +441,6 @@ export {
   recordReconciliationDetection,
   recordStatusSnapshot,
   getEvidence,
+  deriveWebhookEventId,
+  hashPayload,
 };
