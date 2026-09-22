@@ -120,6 +120,7 @@ test('BOS module graph imports cleanly under ESM', async () => {
     '../../src/services/bos/circuitBreaker.js',
     '../../src/services/bos/disbursementService.js',
     '../../src/services/bos/evidenceCollector.js',
+    '../../src/services/bos/settlementReceipt.js',
     '../../src/services/bos/bridgeAdapterFactory.js',
     '../../src/services/bos/RecipientRegistry.js',
   ];
