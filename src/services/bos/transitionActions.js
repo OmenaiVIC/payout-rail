@@ -6,7 +6,7 @@
 
 import { DisbursementState, ReleaseStatus } from './types.js';
 import { USDCX_CONTRACT, PAYOUT_API_BASE_URL } from '../../config/chainConfig.js';
-import { recordTxHash, recordApiResponse, recordGateResult } from './evidenceCollector.js';
+import { recordTxHash, recordApiResponse, recordGateResult, recordPollResult } from './evidenceCollector.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action: runPreflightCheck
@@ -195,6 +195,16 @@ export async function recordReleaseObservation(disbursement, ctx) {
     response: observation,
   });
 
+  await recordPollResult({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
+    status: observation.release_status,
+    log,
+  });
+
   log.info({ id: disbursement.id, release_status: observation.release_status }, 'Destination release observation recorded');
   return {
     release_status: observation.release_status,
@@ -232,6 +242,16 @@ export async function confirmDestinationRelease(disbursement, ctx) {
     response: observation,
   });
 
+  await recordPollResult({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
+    status: observation.release_status,
+    log,
+  });
+
   log.info({ id: disbursement.id, release_status: observation.release_status }, 'Destination release confirmed');
   return {
     release_status: observation.release_status,
@@ -265,6 +285,16 @@ export async function recordReleaseObservedFailed(disbursement, ctx) {
     adapter: 'xreserve',
     method: 'observeDestinationRelease',
     response: observation,
+  });
+
+  await recordPollResult({
+    db,
+    disbursementId: disbursement.id,
+    adapter: 'xreserve',
+    method: 'observeDestinationRelease',
+    response: observation,
+    status: observation.release_status,
+    log,
   });
 
   log.warn({ id: disbursement.id, release_status: observation.release_status }, 'Destination release observation reports failure');
