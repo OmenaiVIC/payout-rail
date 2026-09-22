@@ -8,6 +8,7 @@
 import { DisbursementState as S, TERMINAL_STATES } from './types.js';
 import * as guards from './transitionGuards.js';
 import * as actions from './transitionActions.js';
+import { recordTransitionEvidence } from './evidenceCollector.js';
 
 /**
  * Action-returned fields that are written onto the `disbursements` row.
@@ -380,6 +381,28 @@ export async function executeTransition(disbursement, toState, context, override
     details: mergedDetails,
     triggered_by: triggeredBy,
   });
+
+  // ── Write the canonical transition evidence record ───────────────────
+  // Exactly one `transition`-type record per successful transition. The write
+  // is best-effort AFTER the state flip and audit row (approved Sprint 4
+  // interpretation #2): a failure must NEVER be silent — it is logged at ERROR
+  // with the disbursement id + evidence type, and remains detectable by the
+  // reconciliation consistency job later.
+  try {
+    await recordTransitionEvidence({
+      db,
+      disbursementId: disbursement.id,
+      fromState,
+      toState,
+      triggeredBy,
+      details: mergedDetails,
+    });
+  } catch (err) {
+    log.error(
+      { id: disbursement.id, evidence_type: 'transition', error: err.message },
+      'Failed to record canonical transition evidence'
+    );
+  }
 
   log.info(
     { id: disbursement.id, from: fromState, to: toState, triggered_by: triggeredBy },
