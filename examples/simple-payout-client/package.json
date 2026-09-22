@@ -1,0 +1,11 @@
+{
+  "name": "simple-payout-client",
+  "version": "0.1.0",
+  "description": "Minimal example client for the payout-rail v1 public disbursement API — zero dependencies (Node 18+ global fetch).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node client.js",
+    "test": "node --check client.js"
+  }
+}
