@@ -173,10 +173,12 @@ export async function getManualReviewQueue({ limit = 50, offset = 0 } = {}) {
     const rows = await db.all(
       `SELECT d.id, d.status, d.creator_address, d.amount_usdcx, d.amount_ngn_expected,
               d.created_at, d.updated_at,
-              EXTRACT(EPOCH FROM (NOW() - d.updated_at)) * 1000 AS ms_in_review
-       FROM disbursements d
-       WHERE d.status = 'manual_review'
-       ORDER BY d.updated_at ASC
+              mq.reason, mq.severity, mq.assigned_to, mq.created_at AS queued_at,
+              EXTRACT(EPOCH FROM (NOW() - mq.created_at)) * 1000 AS ms_in_review
+       FROM manual_review_queue mq
+       LEFT JOIN disbursements d ON d.id = mq.disbursement_id
+       WHERE mq.resolved = FALSE
+       ORDER BY mq.created_at ASC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );

@@ -409,6 +409,9 @@ export async function confirmYellowCardPayout(disbursement, ctx) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function markSettled(disbursement, ctx) {
   const log = ctx.getLogger('transition:markSettled');
+  const db = ctx.getDb();
+  await resolveManualReview({ db, disbursementId: disbursement.id, resolution: 'settled' })
+    .catch((err) => log.error({ id: disbursement.id, queue: 'manual_review_queue', error: err.message }, 'Failed to resolve manual review'));
   log.info({ id: disbursement.id }, 'Disbursement settled');
   return { settled_at: new Date().toISOString() };
 }
@@ -420,6 +423,9 @@ export async function markSettled(disbursement, ctx) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function markFailed(disbursement, ctx) {
   const log = ctx.getLogger('transition:markFailed');
+  const db = ctx.getDb();
+  await resolveManualReview({ db, disbursementId: disbursement.id, resolution: 'failed' })
+    .catch((err) => log.error({ id: disbursement.id, queue: 'manual_review_queue', error: err.message }, 'Failed to resolve manual review'));
   log.warn({ id: disbursement.id, reason: disbursement.last_error }, 'Disbursement marked failed');
   return { failed_at: new Date().toISOString() };
 }
@@ -431,6 +437,9 @@ export async function markFailed(disbursement, ctx) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function markCancelled(disbursement, ctx) {
   const log = ctx.getLogger('transition:markCancelled');
+  const db = ctx.getDb();
+  await resolveManualReview({ db, disbursementId: disbursement.id, resolution: 'cancelled' })
+    .catch((err) => log.error({ id: disbursement.id, queue: 'manual_review_queue', error: err.message }, 'Failed to resolve manual review'));
   log.info({ id: disbursement.id }, 'Disbursement cancelled');
   return { cancelled_at: new Date().toISOString() };
 }
@@ -442,6 +451,12 @@ export async function markCancelled(disbursement, ctx) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function moveToManualReview(disbursement, ctx) {
   const log = ctx.getLogger('transition:moveToManualReview');
+  const db = ctx.getDb();
+
+  const reason = disbursement.last_error || disbursement.error_message || `stuck in ${disbursement.status}`;
+  await enqueueManualReview({ db, disbursementId: disbursement.id, reason })
+    .catch((err) => log.error({ id: disbursement.id, queue: 'manual_review_queue', error: err.message }, 'Failed to enqueue manual review'));
+
   log.warn({ id: disbursement.id, from_status: disbursement.status }, 'Moving to manual review');
   return { manual_review_at: new Date().toISOString() };
 }
@@ -476,6 +491,32 @@ export async function getExternalRef(db, disbursementId, system, idType) {
     `SELECT * FROM external_refs
      WHERE disbursement_id = $1 AND external_system = $2 AND identifier_type = $3`,
     [disbursementId, system, idType]
+  );
+}
+
+/**
+ * Enqueue an open manual-review item for a disbursement. The ON CONFLICT targets
+ * the partial unique index idx_review_open_per_disbursement (migration 008), so a
+ * re-enqueue while an open row exists is a no-op — never a duplicate queue item.
+ */
+export async function enqueueManualReview({ db, disbursementId, reason }) {
+  await db.run(
+    `INSERT INTO manual_review_queue (disbursement_id, reason, severity, resolved)
+     VALUES ($1, $2, 'normal', FALSE)
+     ON CONFLICT (disbursement_id) WHERE resolved = FALSE DO NOTHING`,
+    [disbursementId, reason]
+  );
+}
+
+/**
+ * Resolve any open manual-review items for the disbursement (terminal transitions).
+ */
+export async function resolveManualReview({ db, disbursementId, resolution }) {
+  await db.run(
+    `UPDATE manual_review_queue
+     SET resolved = TRUE, resolution = $2, resolved_at = NOW(), resolved_by = 'workflow'
+     WHERE disbursement_id = $1 AND resolved = FALSE`,
+    [disbursementId, resolution]
   );
 }
 
