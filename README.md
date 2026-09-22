@@ -150,7 +150,8 @@ only); sensitive keys (`account_number`, `recipient`, `phone`, `email`, `bvn`,
 ## Routes
 
 - `GET /health`, `GET /warmup`
-- `GET|POST /api/disbursements`, `GET|POST /api/disbursements/:id` — see [Disbursement API](#disbursement-api)
+- `GET|POST /api/disbursements`, `GET|POST /api/disbursements/:id` — see [Disbursement API](#disbursement-api) (Sprint 0.5 router, **deprecated** — kept for backward compatibility)
+- `GET|POST /api/v1/disbursements/*` — versioned public disbursement API for external integrations — see [Disbursement API v1](#disbursement-api-v1)
 - `GET|POST /api/bos/monitoring/*` — dashboard, workers, manual run, manual review (gated by `CRON_SECRET`)
 - `POST /api/bos/webhooks/yellowcard`, `POST /api/bos/webhooks/yellowcard/test` — see [Webhooks](#webhooks)
 
@@ -191,10 +192,126 @@ Creation resolves the current `USDCx/NGN` rate from `exchange_rates`
 creation is **rejected** (fail closed) rather than inserting a row that can never
 pay out.
 
-Caveat: the operator/approval routes (`approve`, manual-review resolution) are
-**not** exposed yet — they depend on an actor model that is still undecided
-(see `docs/SPRINT_0_5_REPORT.md`). Two-person approval engages only at
-`amount_usd >= 1000`.
+Caveat: this legacy router is **deprecated** — new integrations must target
+[Disbursement API v1](#disbursement-api-v1), which adds the operator actions
+(`approve`, `resolve`) and the settlement receipt, all behind the same shared
+token. The legacy error bodies below are what v0 still returns; v1 normalizes them
+(see the next section). Two-person approval engages only at `amount_usd >= 1000`.
+
+## Disbursement API v1
+
+The versioned public surface for external Stacks applications — **mount** on
+`/api/v1/disbursements/*`. `v0` (`/api/disbursements/*`) is deprecated but stays
+functional and unchanged.
+
+### Authentication
+
+Identical to v0 — fail-closed, constant-time bearer check:
+
+```bash
+curl -H "Authorization: Bearer $BOS_API_TOKEN" \
+     https://host/api/v1/disbursements/... 
+```
+
+With `BOS_API_TOKEN` unset, every request is rejected with `401` unless
+`BOS_ALLOW_UNAUTHENTICATED_DEV=true` (non-production escape hatch).
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/disbursements` | Create a disbursement (idempotent; runs safety gates → `preflight_check`) |
+| `GET` | `/api/v1/disbursements` | List disbursements (bounded; `limit` 1–200, `offset`; `status`/`source_reference`/`source_application` filters) |
+| `GET` | `/api/v1/disbursements/:id` | Fetch one disbursement with its `external_refs` and `audit_log` |
+| `GET` | `/api/v1/disbursements/:id/receipt` | Settlement receipt reconstructable from stored evidence (read-only) |
+| `POST` | `/api/v1/disbursements/:id/advance` | Advance one (or `?steps=n`, max 25) state step(s) |
+| `POST` | `/api/v1/disbursements/:id/retry` | Retry a `failed` disbursement (within retry budget) |
+| `POST` | `/api/v1/disbursements/:id/recover` | Move a stuck disbursement to `manual_review` |
+| `POST` | `/api/v1/disbursements/:id/approve` | Record a two-person approval contribution (`approver` label) |
+| `POST` | `/api/v1/disbursements/:id/resolve` | Resolve `manual_review` → `settled` / `failed` / `cancelled` (`reviewer`, `note`) |
+
+The create body is the same shape as v0 (see [Disbursement API](#disbursement-api)).
+
+```bash
+# create → 201 { disbursement }
+curl -X POST -H "Authorization: Bearer $BOS_API_TOKEN" \
+     -H 'content-type: application/json' \
+     -d '{"source_reference":"campaign-001","amount_usd":50,"amount_usdcx":50000000,
+          "creator_address":"SP2J6ZY48...","recipient_bank_account":"0123456789","recipient_bank_code":"044"}' \
+     https://host/api/v1/disbursements
+
+# approve → contribution recorded (2 distinct approvers flip approved: true)
+curl -X POST -H "Authorization: Bearer $BOS_API_TOKEN" -H 'content-type: application/json' \
+     -d '{"approver":"ops-1"}' https://host/api/v1/disbursements/:id/approve
+
+# resolve a manual_review row to a terminal state
+curl -X POST -H "Authorization: Bearer $BOS_API_TOKEN" -H 'content-type: application/json' \
+     -d '{"resolution":"settled","reviewer":"ops-1","note":"payout confirmed off-chain"}' \
+     https://host/api/v1/disbursements/:id/resolve
+
+# settlement receipt (read-only)
+curl -H "Authorization: Bearer $BOS_API_TOKEN" https://host/api/v1/disbursements/:id/receipt
+```
+
+### Error contract
+
+v1 returns a **normalized ErrorResponse** body on every failure path:
+
+```jsonc
+{ "error": "human readable message", "error_code": "machine_code", "details": { } }
+```
+
+| HTTP | `error_code` | When |
+|------|--------------|------|
+| `401` | `unauthorized` | Missing/wrong bearer, or no token configured (fail closed) |
+| `400` | `missing_recipient_bank_details` / `missing_exchange_rate` | Create rejected (fail closed) |
+| `400` | `invalid_body` | `approve` without `approver`; `resolve` with an unknown `resolution` |
+| `404` | `not_found` | Unknown disbursement (including `receipt` — never a 500) |
+| `409` | `retry_conflict` | Retry from a non-`failed` state |
+| `409` | `advance_conflict` / `recover_conflict` | Guard/eligibility rejection during advance/recover |
+| `409` | `wrong_state` | Resolve a disbursement not in `manual_review` |
+
+When a transition guard rejects, the specific guard `error_code` (e.g. `u8211`)
+is surfaced instead of the generic fallback. `409` responses still include the
+`error` message.
+
+The **legacy v0** shapes are unchanged and differ as follows (for parity with
+existing callers of `/api/disbursements/*`):
+
+| | v0 (legacy) | v1 (normalized) |
+|---|---|---|
+| auth denial | `401 { "error": "unauthorized" }` | `401 { "error": "unauthorized", "error_code": "unauthorized" }` |
+| unknown id | `404 { "error": "not found" }` | `404 { "error": "not found", "error_code": "not_found" }` |
+| conflict | `409 { "result", "disbursement" }` (plain result) | `409 { "error", "error_code", … }` (normalized) |
+
+### Idempotency
+
+- **Create**: the `idempotency_key` is derived from stable inputs only
+  (`disbursement:<sha256(source_reference | source_application | amount_usdcx |
+  recipient_bank_account)>`). Retrying a create with identical inputs returns the
+  **existing** disbursement (same `id`) and inserts no second row — callers can
+  retry `POST /` safely. Distinct inputs produce distinct disbursements.
+- **Approve**: idempotent per `(disbursement_id, approver)` — repeating the same
+  `approver` never double-counts; two **distinct** labels reach 2/2 and set
+  `approved: true`.
+- **Transitions**: every state change is claimed with an optimistic
+  compare-and-swap (`UPDATE … WHERE id = $N AND status = $fromState`), so
+  overlapping advances/webhooks/retries never double-execute a side-effect.
+
+### Actors
+
+`approver` (on approve) and `reviewer` (on resolve) are **caller-supplied
+recorded labels**, not authenticated identities: they are persisted as
+`approver_address` on the approval row and `resolved_by` on the
+`manual_review_queue` row. Shared-token gating is intentional for this surface;
+role-based access control is deferred (see `docs/POSTPONED_BACKLOG.md`, **RBAC-1**).
+
+### Receipt
+
+`GET /:id/receipt` returns the Sprint 4 settlement receipt reconstructed **from
+stored evidence only** — the route performs reads only, never fabricates a leg,
+and missing evidence surfaces explicit `gaps` entries. An unknown disbursement is
+a `404`, never a `500`.
 
 ## Webhooks
 

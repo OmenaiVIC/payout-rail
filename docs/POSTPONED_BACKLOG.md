@@ -140,3 +140,33 @@ visibility; all are additive to the current (correct but coarse) single check.
   already captured.
 - **Resurrect if:** change-management needs a dedicated before/after view of app configuration
   at transition time.
+
+---
+
+## Sprint 5 additions (public disbursement API 5a — deferred, not built)
+
+### RBAC-1 — Role-based access control for `approve` / `resolve` (P2)
+
+- **Status:** POSTPONED — P2. Sprint 5 ships operator actions behind the shared
+  fail-closed token only (approved Option C / Deviation 3 & 4 in
+  `docs/SPRINT_5_PLAN.md`); RBAC is deliberately **not** implemented in 5a.
+- **What exists instead:** `POST /api/v1/disbursements/:id/approve` and
+  `POST /api/v1/disbursements/:id/resolve` are gated by the same `BOS_API_TOKEN`
+  bearer used by every other disbursement route. The `approver` label is a
+  caller-supplied string recorded in `two_person_approvals.approver_address`;
+  on resolve, `reviewer` is recorded as `resolved_by` on the `manual_review_queue`
+  row (operator call) or `workflow` (system call). The two-person rule is counted
+  on distinct labels, not distinct identities.
+- **Risk while in backlog:** any caller holding the shared token can record an
+  approval or resolve a manual_review row. Compensation: approvals need two
+  distinct labels and every resolution is attributed + audit-logged; but one
+  leaked token could in principle fabricate both sides.
+- **Suggested fix direction:** real operator RBAC — an `operators` table keyed by
+  identity with per-operator API tokens, a role check (`approve` / `resolve`) at
+  the route layer, and `approver` / `reviewer` derived from the authenticated
+  principal instead of the request body. Optionally thread the identity into the
+  receipt as `inspected_by`.
+- **Estimated complexity to resurrect:** Medium — new table(s) + auth middleware +
+  route changes + tests. No state-machine changes required.
+- **Resurrect if:** more than a handful of operators, or an audit requirement that
+  a free-form label cannot satisfy.
