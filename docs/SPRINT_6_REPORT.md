@@ -115,15 +115,16 @@ lifecycle with missing credentials; simulated inputs only — gate code untouche
 Additional deviations surfaced during implementation:
 
 1. **`src/services/bos/stateMachine.js` placeholder-binding bug (`$4`/`$5`) —
-   identified, not fixed.** The persisted-extra-fields UPDATE reuses the
+   fixed (post-sprint follow-up).** The persisted-extra-fields UPDATE reused the
    claim-UPDATE placeholder numbering (`$4`, `$5`) while its bind array supplies
    fewer parameters; against a real driver this is "bind message supplies 3
    parameters, but prepared statement requires 5". The runner's emulated ledger
-   reproduces the same failure and **repairs it locally** — `parseExecute`
-   detects `max placeholder > params.length` and reindexes the placeholders
-   sequentially — so the demo is green and `src/` stays byte-identical per the
-   plan's no-touch constraint. This is a genuine product bug and deserves a
-   dedicated fix-ticket; see *Recommendations*.
+   reproduced the same failure and, at sprint time, **repaired it locally** —
+   `parseExecute` detected `max placeholder > params.length` and reindexed the
+   placeholders sequentially — keeping `src/` byte-identical per the plan's
+   no-touch constraint. Under a subsequent user decision the genuine bug was
+   then fixed in `src/` (`d516cc5`) and the runner's reindex workaround removed
+   as dead code (`a9fdcb1`); see *Post-sprint follow-up*.
 2. **Greedy `VALUES` parse in the emulated ledger swallowed `ON CONFLICT`.**
    The runner's `parseStatement` matched `VALUES (…)\s*(ON CONFLICT …)?$` with a
    greedy capture, so a real `… DO UPDATE SET updated_at = NOW(), … ON CONFLICT
@@ -154,11 +155,36 @@ Additional deviations surfaced during implementation:
 Per the plan, all exits are as specified in `docs/SPRINT_6_PLAN.md` — none of
 the Sprint 1–5 backlog entries were touched.
 
+## Post-sprint follow-up
+
+Approved by the user after Sprint 6 review (before Sprint 7):
+
+- `d516cc5` — **fix**: `src/services/bos/stateMachine.js` now numbers the
+  persisted-extra-fields UPDATE's own placeholders from `$1` (was `$4`). Any
+  test/helper regex that pinned the `$4` shape was updated to `$1` in lockstep.
+  Full suite stays `184/183/0/1`.
+- `a9fdcb1` — **refactor**: dropped the `parseExecute` reindex branch from
+  `scripts/demo-payout-ngn.js`, leaving only the direct
+  `paramRefs.map(n => params[n-1])` binding. `npm test` and
+  `npm run demo:payout:ngn` both pass with the workaround gone (demo exit `0`,
+  `final_status: settled`, `gaps: []`).
+
+Confirmations for the follow-up:
+
+- The workaround is removed: `parseExecute` no longer contains the
+  `Math.max(...paramRefs) > params.length` reindex path.
+- No other files were modified by the follow-up: `git status --short` changed
+  only `src/services/bos/stateMachine.js` (fix), `scripts/demo-payout-ngn.js`
+  (workaround removal), the five test/helper files asserting the SQL shape, and
+  this report.
+- No pushes and no new runtime dependencies in either commit.
+
 ## Recommendations
 
-- Open a fix-ticket for the `stateMachine.js` placeholder-binding deviation (#1):
-  repair the extra-fields persisted-UPDATE binding in `src/` — the runner's
-  `parseExecute` reindex workaround is the exact spec for the fix.
+- ~~Open a fix-ticket for the `stateMachine.js` placeholder-binding deviation
+  (#1)~~ — **resolved**: the extra-fields persisted-UPDATE now binds from `$1`
+  in `src/` (`d516cc5`) and the runner's `parseExecute` reindex workaround was
+  removed (`a9fdcb1`). See *Post-sprint follow-up*.
 - Consider extracting the runner's ~60-line emulated-ledger module into a shared
   test double so future sprints can drive the same services without Postgres.
 
