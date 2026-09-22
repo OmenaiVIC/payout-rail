@@ -13,7 +13,7 @@ import { getReaperThresholdMs } from './monitoring/thresholdConfig.js';
 // Reaper triggers at 2× the SLA threshold
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATE_SLA_MS = {
+export const STATE_SLA_MS = {
   [DisbursementState.BURN_SUBMITTED]:                600_000,  // 10 min
   [DisbursementState.BURN_CONFIRMED]:                300_000,  // 5 min (internal, fast)
   [DisbursementState.ATTESTATION_REQUESTED]:          900_000,  // 15 min

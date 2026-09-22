@@ -93,6 +93,13 @@ export function createMockYellowCard() {
     calls,
     /** Override to simulate an unconfirmed payout lookup. */
     lookupResult: null,
+    /**
+     * Per-sendId lookup results (Sprint 4b reconciliation tests).
+     * A Map (sendId → result), a plain object keyed by sendId, or a function
+     * (sendId) => result. Backward-compatible: when absent, `lookupResult` /
+     * the default are used exactly as before.
+     */
+    lookupResults: null,
 
     async submitSend(params) {
       calls.submitSend.push(params);
@@ -102,6 +109,12 @@ export function createMockYellowCard() {
 
     async lookupSend(sendId) {
       calls.lookupSend.push(sendId);
+      const per = this.lookupResults;
+      if (per) {
+        if (per instanceof Map && per.has(sendId)) return per.get(sendId);
+        if (typeof per === 'function') return per(sendId);
+        if (Object.prototype.hasOwnProperty.call(per, sendId)) return per[sendId];
+      }
       if (this.lookupResult) return this.lookupResult;
       return { status: 'completed', data: { id: sendId } };
     },
