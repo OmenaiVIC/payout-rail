@@ -103,7 +103,9 @@ export async function generateSettlementReceipt({ db, disbursementId }) {
 
   const attestationCompleted = transitionEvidence.some((e) => e.data?.status?.to === 'attestation_confirmed');
 
-  const attestationSnapshot = (snapshots || []).filter((s) => /xreserve|attestation/i.test(s.source)).at(-1) || null;
+  const attestationSnapshot = (snapshots || []).filter(
+    (s) => /xreserve/i.test(s.source) && !/release|observe/i.test(s.source)
+  ).at(-1) || null;
   const releaseSnapshot = (snapshots || []).filter((s) => /release|observeDestination/i.test(s.source)).at(-1) || null;
   const payoutSnapshot = (snapshots || []).filter(
     (s) => /yellowcard|lookupSend/i.test(s.source) && /complete|confirmed/i.test(String(s.status))
