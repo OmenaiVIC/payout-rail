@@ -49,7 +49,7 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 | 04b | `04b_SPRINT_2_STACKS_USDCX.md`    | Settlement model correction (observation-based).          | Completed  |
 | 05  | `05_SPRINT_4_EVIDENCE.md`         | Evidence chain, reconciliation, settlement receipts.      | Active     |
 | 06  | `06_SPRINT_3_YELLOWCARD.md`       | Yellow Card integration.                                  | Deferred   |
-| 07  | `07_SPRINT_5_PUBLIC_INTERFACE.md` | Public API and example client.                            | Pending    |
+| 07  | `07_SPRINT_5_PUBLIC_INTERFACE.md` | Public API, versioned, example client.                    | Active     |
 | 08  | `08_SPRINT_6_DEMO.md`             | Reproducible Nigeria payout demonstration.                | Pending    |
 | 09  | `09_SPRINT_7_OPENSOURCE.md`       | Open-source release candidate.                            | Pending    |
 | 10  | `10_SPRINT_8_GRANT.md`            | Product evidence and grant readiness.                     | Pending    |
