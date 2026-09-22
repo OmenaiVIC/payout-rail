@@ -3,8 +3,13 @@
  *
  * Implements the adapter interface consumed by transitionGuards.js and transitionActions.js.
  *
- * Auth: YcHmacV1 scheme — HMAC-SHA256 signature over (timestamp + apiKey + bodyHash)
- *       using YELLOW_CARD_SECRET_KEY. Not Bearer tokens.
+ * Auth: YcHmacV1 scheme — `Authorization: YcHmacV1 {apiKey}:{signature}` plus an
+ *       `X-YC-Timestamp` header. Signature = base64 HMAC-SHA256 over
+ *       (timestamp + path + method [+ base64(SHA256(body))] for POST/PUT), keyed by
+ *       YELLOW_CARD_SECRET_KEY. Matches docs.yellowcard.engineering (reference:
+ *       docs/yellowcard-api-reference.md). Every wire behavior is UNVERIFIED against
+ *       a live sandbox (no credentials) — this adapter claims to match the documented
+ *       model, not that it has worked against the API.
  *
  * Endpoints: Base URL is /business (NOT /v1).
  *   Sandbox: https://sandbox.api.yellowcard.io/business
@@ -41,40 +46,51 @@ export function classifyError(error) {
 }
 
 /**
- * Compute YcHmacV1 signature for Yellow Card API request.
+ * Compute YcHmacV1 signature for a Yellow Card API request.
  *
- * Signature = HMAC-SHA256(secret, timestamp + apiKey + bodyHash)
- * bodyHash  = SHA-256 hex of request body (empty string for GET/DELETE)
- * timestamp = ISO-8601 UTC, e.g. "2026-07-23T12:00:00Z"
+ * Signed message (per public docs — see docs/yellowcard-api-reference.md):
+ *   GET/DELETE:  timestamp + path + method
+ *   POST/PUT:    timestamp + path + method + base64(SHA256(body))
+ * Signature = base64 HMAC-SHA256(signing message), sent as
+ *   `Authorization: YcHmacV1 {apiKey}:{signature}` plus `X-YC-Timestamp: {timestamp}`.
+ * `path` is the request path INCLUDING the /business prefix, e.g. `/business/send`.
+ *   Query-string inclusion and trailing-slash normalization are UNVERIFIED
+ *   (no sandbox credentials); `new URL(url).pathname` excludes the query string.
+ * `timestamp` is full ISO-8601 UTC with milliseconds (docs example carries millis).
+ *   Second-precision truncation was removed; the old (timestamp + apiKey + hex body)
+ *   envelope is INCORRECT vs docs and is gone.
  *
- * @param {string} method — HTTP method
- * @param {string|null} body — raw JSON body string (null for GET)
- * @param {string} secret — YELLOW_CARD_SECRET_KEY
- * @param {string} apiKey — YELLOW_CARD_API_KEY
+ * @param {string} method — HTTP method (uppercase)
+ * @param {string|null} body — raw JSON body string (null for GET/DELETE)
+ * @param {string} path — URL path including /business prefix (UNVERIFIED if query/trailing-slash normalized)
+ * @param {string} [secret] — YELLOW_CARD_SECRET_KEY
+ * @param {string} [apiKey] — YELLOW_CARD_API_KEY
  * @returns {{ authorization: string, timestamp: string }}
  */
-function _computeAuth(method, body, secret = YELLOW_CARD_SECRET_KEY, apiKey = YELLOW_CARD_API_KEY) {
+function _computeAuth(method, body, path, secret = YELLOW_CARD_SECRET_KEY, apiKey = YELLOW_CARD_API_KEY) {
   if (!secret || !apiKey) {
     return { authorization: '', timestamp: '' };
   }
-  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const timestamp = new Date().toISOString();
   const bodyHash = (body && method !== 'GET' && method !== 'DELETE')
-    ? crypto.createHash('sha256').update(body).digest('hex')
+    ? crypto.createHash('sha256').update(body).digest('base64')
     : '';
-  const message = timestamp + apiKey + bodyHash;
-  const signature = crypto.createHmac('sha256', secret).update(message).digest('hex');
-  const authValue = `YcHmacV1 ${JSON.stringify({ timestamp, apiKey, bodyHash, signature })}`;
+  const message = timestamp + path + method + bodyHash;
+  const signature = crypto.createHmac('sha256', secret).update(message).digest('base64');
+  const authValue = `YcHmacV1 ${apiKey}:${signature}`;
   return { authorization: authValue, timestamp };
 }
 
 /**
  * Build common fetch options for Yellow Card API calls
  */
-function _headers(method, body, extra = {}) {
-  const { authorization } = _computeAuth(method, body);
+function _headers(method, body, url, extra = {}) {
+  const path = url ? new URL(url).pathname : '';
+  const { authorization, timestamp } = _computeAuth(method, body, path);
   return {
     'Content-Type': 'application/json',
     ...(authorization ? { 'Authorization': authorization } : {}),
+    ...(timestamp ? { 'X-YC-Timestamp': timestamp } : {}),
     ...extra,
   };
 }
@@ -98,17 +114,22 @@ async function _fetch(url, options = {}, { timeoutMs = 10000 } = {}) {
 }
 
 /**
- * Compute HMAC-SHA256 signature for webhook payload verification
+ * Compute HMAC-SHA256 signature for webhook payload verification.
+ *
+ * Yellow Card signs webhooks with a BASE64 HMAC-SHA256 digest (docs
+ * /docs/webhooks-api; example signature 'fakno+9epoa/obe='). Changed from hex
+ * to base64 so signWebhook produces what the verifier accepts (verifyHmac
+ * accepts hex/base64/base64url) and what YC expects.
  *
  * @param {string|Buffer} payload — raw request body
  * @param {string} secret — webhook signing secret
- * @returns {string} hex-encoded HMAC signature
+ * @returns {string} base64-encoded HMAC signature
  */
 export function signWebhook(payload, secret = YELLOW_CARD_WEBHOOK_SECRET) {
   if (!secret) return '';
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(typeof payload === 'string' ? payload : JSON.stringify(payload));
-  return hmac.digest('hex');
+  return hmac.digest('base64');
 }
 
 /**
@@ -132,29 +153,51 @@ export function verifyWebhookSignature(payload, signature, secret = YELLOW_CARD_
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * POST /business/send — Submit NGN payout request
+ * POST /business/send — Submit NGN payout request (documented "Send" model)
+ *
+ * Wire body maps to the documented Sends fields — see docs/yellowcard-api-reference.md:
+ *   sequenceId  = idempotency_key (documented idempotency key; replaces the
+ *                 removed `X-Idempotency-Key` header)
+ *   channelType = 'bank' | 'momo' from recipient_type
+ *   country/currency, localAmount (NGN, widest-unit kobo) — `amount` (USD) is omitted
+ *   forceAccept = true
+ *   destination = { accountNumber, accountType, networkId, accountName }
+ * `sender` is intentionally OMITTED: docs mark it required and we have no sender KYC
+ *   — capability gap, not fabricated data (UNVERIFIED).
+ * UNVERIFIED (no sandbox credentials): channelType+country+currency selector vs
+ *   channelId; localAmount kobo-vs-decimal; networkId mapping from bankCode;
+ *   forceAccept semantics for bank payouts; the optional `reason` field.
  *
  * @param {Object} params
- * @param {string} params.idempotency_key   — unique key to prevent duplicate payouts
- * @param {number|string} params.amount     — amount in NGN kobo (smallest unit)
+ * @param {string} params.idempotency_key   — unique key to prevent duplicate payouts (→ sequenceId)
+ * @param {number|string} params.amount     — amount in NGN kobo (smallest unit) → localAmount
  * @param {string} params.currency          — 'NGN'
- * @param {string} params.recipient_type    — 'bank_account' | 'mobile_money'
- * @param {Object} params.recipient         — { bankCode, accountNumber, accountName?, type? }
- * @param {string} [params.callback_url]    — webhook URL for status updates
+ * @param {string} params.recipient_type    — 'bank_account' | 'mobile_money' → 'bank' | 'momo'
+ * @param {Object} params.recipient         — { bankCode, accountNumber, accountName?, networkId? }
+ * @param {string} [params.callback_url]    — webhook URL; no documented field in the Sends model (UNVERIFIED)
  * @returns {Promise<{ send_id: string, status: string, sequence_id?: string }>}
  */
 export async function submitSend({ idempotency_key, amount, currency, recipient_type, recipient, callback_url }) {
+  const channelType = recipient_type === 'mobile_money' ? 'momo' : 'bank';
+  const destination = {
+    accountNumber: recipient?.accountNumber || '',
+    accountType: channelType,
+    networkId: recipient?.networkId || recipient?.bankCode || '',
+    ...(recipient?.accountName ? { accountName: recipient.accountName } : {}),
+  };
   const body = JSON.stringify({
-    amount: String(amount),
+    sequenceId: idempotency_key,
+    channelType,
+    country: 'NG',
     currency: currency || 'NGN',
-    recipientType: recipient_type || 'bank_account',
-    recipient: recipient || {},
-    callbackUrl: callback_url || '',
+    localAmount: String(amount),
+    forceAccept: true,
+    destination,
   });
   const url = `${YELLOW_CARD_API_URL}/send`;
   const resp = await _fetch(url, {
     method: 'POST',
-    headers: _headers('POST', body, { 'X-Idempotency-Key': idempotency_key || '' }),
+    headers: _headers('POST', body, url),
     body,
   });
 
@@ -185,7 +228,7 @@ export async function lookupSend(sendId) {
   const url = `${YELLOW_CARD_API_URL}/send/${sendId}`;
   const resp = await _fetch(url, {
     method: 'GET',
-    headers: _headers('GET', null),
+    headers: _headers('GET', null, url),
   });
 
   if (!resp.ok) {
@@ -221,7 +264,7 @@ export async function listSends({ limit, offset, status } = {}) {
   const url = `${YELLOW_CARD_API_URL}/sends${qs ? '?' + qs : ''}`;
   const resp = await _fetch(url, {
     method: 'GET',
-    headers: _headers('GET', null),
+    headers: _headers('GET', null, url),
   });
 
   if (!resp.ok) {
@@ -249,7 +292,7 @@ export async function getSendFee({ amount, currency = 'NGN' }) {
   const url = `${YELLOW_CARD_API_URL}/sends/fee?${params.toString()}`;
   const resp = await _fetch(url, {
     method: 'GET',
-    headers: _headers('GET', null),
+    headers: _headers('GET', null, url),
   });
 
   if (!resp.ok) {
@@ -278,9 +321,10 @@ export async function getSendFee({ amount, currency = 'NGN' }) {
 export async function healthCheck() {
   const start = Date.now();
   try {
-    const resp = await _fetch(`${YELLOW_CARD_API_URL}/account`, {
+    const url = `${YELLOW_CARD_API_URL}/account`;
+    const resp = await _fetch(url, {
       method: 'GET',
-      headers: _headers('GET', null),
+      headers: _headers('GET', null, url),
     }, { timeoutMs: 5000 });
     const data = resp.ok ? await resp.json().catch(() => null) : null;
     return { healthy: resp.ok, latencyMs: Date.now() - start, data };
@@ -302,7 +346,7 @@ export async function resolveBankAccount({ bankCode, accountNumber }) {
   const url = `${YELLOW_CARD_API_URL}/details/bank`;
   const resp = await _fetch(url, {
     method: 'POST',
-    headers: _headers('POST', body),
+    headers: _headers('POST', body, url),
     body,
   });
 
@@ -332,7 +376,7 @@ export async function getChannels() {
   const url = `${YELLOW_CARD_API_URL}/channels`;
   const resp = await _fetch(url, {
     method: 'GET',
-    headers: _headers('GET', null),
+    headers: _headers('GET', null, url),
   });
 
   if (!resp.ok) {
@@ -365,7 +409,7 @@ export async function getRates({ from, to, amount } = {}) {
   const url = `${YELLOW_CARD_API_URL}/rates${qs ? '?' + qs : ''}`;
   const resp = await _fetch(url, {
     method: 'GET',
-    headers: _headers('GET', null),
+    headers: _headers('GET', null, url),
   });
 
   if (!resp.ok) {
