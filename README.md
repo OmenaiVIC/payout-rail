@@ -253,6 +253,26 @@ curl -X POST -H "Authorization: Bearer $BOS_API_TOKEN" -H 'content-type: applica
 curl -H "Authorization: Bearer $BOS_API_TOKEN" https://host/api/v1/disbursements/:id/receipt
 ```
 
+### Example client
+
+A zero-dependency (Node 18+ `fetch`) create → advance → receipt → error-path
+walkthrough lives in [`examples/simple-payout-client/`](examples/simple-payout-client/).
+It runs against a real deployment or the repo's mocked test harness — no
+credentials or external network calls beyond the configured base URL.
+Transcript captured from the mocked run:
+
+```
+create       {"id":"2fecff56-…","status":"preflight_check"}
+idempotency_key disbursement:7f13ec69…
+advance      {"success":true,"new_state":"manual_review"}
+receipt      {"final_status":"manual_review","gaps":4}
+
+error path: GET receipt for an unknown id
+  -> 404 not_found — Disbursement not found: 00000000-0000-0000-0000-000000000000
+error path: request with a wrong token
+  -> 401 unauthorized — unauthorized
+```
+
 ### Error contract
 
 v1 returns a **normalized ErrorResponse** body on every failure path:

@@ -41,24 +41,29 @@ unexpected failure.
 
 ## Sample run
 
+Captured verbatim from `test/unit/examples-client.test.js` (mocked infrastructure,
+ephemeral local listener); only volatile values are elided with `…`:
+
 ```
 simple-payout-client demo
-base: http://localhost:3001
+base: http://127.0.0.1:63903
 
-create       {"id":"…","status":"preflight_check"}
-idempotency_key disbursement:9ea2…
+create       {"id":"2fecff56-…","status":"preflight_check"}
+idempotency_key disbursement:7f13ec69…
 advance      {"success":true,"new_state":"manual_review"}
-receipt      {"final_status":"manual_review","gaps":0}
+receipt      {"final_status":"manual_review","gaps":4}
 
-error path: GET /receipt for an unknown id
-  -> 404 not_found — Disbursement not found: 00000000-…
+error path: GET receipt for an unknown id
+  -> 404 not_found — Disbursement not found: 00000000-0000-0000-0000-000000000000
 error path: request with a wrong token
   -> 401 unauthorized — unauthorized
 
 demo complete
 ```
 
-Values that vary between runs are elided with `…`.
+`gaps: 4` is expected — a freshly created row has no burn / attestation /
+release / payout evidence yet; the receipt states those gaps instead of
+fabricating completion.
 
 ## Using the exports
 
