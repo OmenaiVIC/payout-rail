@@ -348,6 +348,21 @@ a `404`, never a `500`.
 - `POST /api/bos/webhooks/yellowcard/test` — manual webhook injection, gated by
   the same `BOS_API_TOKEN` bearer token as the disbursement API.
 
+## NGN payout demo
+
+`scripts/demo-payout-ngn.js` reproduces the full Nigeria corridor
+(USDCx → NGN via Yellow Card) **in-process**: the real Sprint 5 state machine,
+guards, actions, evidence recorders and receipt generator run unmodified; only
+the ledger and the external world (Stacks, xReserve, Yellow Card) are simulated,
+and every trace is labelled `DEMO` / `(simulated)`. It exits `0` only when the
+lifecycle reaches `settled` with an empty receipt `gaps` array — success is never
+fabricated. See [`docs/DEMO.md`](docs/DEMO.md).
+
+```bash
+npm run demo:payout:ngn                    # DEMO_MODE → settled, gaps [], exit 0
+npm run demo:payout:ngn -- --mode=sandbox  # fail-closed credential matrix (exit 2 when incomplete)
+```
+
 ## Tests
 
 ```bash
