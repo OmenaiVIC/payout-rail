@@ -38,38 +38,24 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 
 \## Execution Order
 
-| # | File | Purpose | Status |
+| #   | File                              | Purpose                                                   | Status     |
+| --- | --------------------------------- | --------------------------------------------------------- | ---------- |
+| 00  | `00_MASTER.md`                    | Role, principles, working method. Read every session.     | Standing   |
+| 01  | `01_PROMPT_0A_EXTRACTION.md`      | Extract BOS from CineX into Payout Rail.                  | Completed  |
+| 02  | `02_PROMPT_0_BASELINE.md`         | Technical and product baseline.                           | Completed  |
+| 03  | `03_SPRINT_1_ORCHESTRATION.md`    | SUPERSEDED by 03a.                                        | Superseded |
+| 03a | `03a_SPRINT_0_5_MVP_PATH.md`      | MVP path fixes (six P0/P1 gaps).                          | Completed  |
+| 04a | `04a_SPRINT_1_5_HARDENING.md`     | Deterministic idempotency, CAS guard, duplicate handling. | Completed  |
+| 04b | `04b_SPRINT_2_STACKS_USDCX.md`    | Settlement model correction (observation-based).          | Completed  |
+| 05  | `05_SPRINT_4_EVIDENCE.md`         | Evidence chain, reconciliation, settlement receipts.      | Active     |
+| 06  | `06_SPRINT_3_YELLOWCARD.md`       | Yellow Card integration.                                  | Deferred   |
+| 07  | `07_SPRINT_5_PUBLIC_INTERFACE.md` | Public API and example client.                            | Pending    |
+| 08  | `08_SPRINT_6_DEMO.md`             | Reproducible Nigeria payout demonstration.                | Pending    |
+| 09  | `09_SPRINT_7_OPENSOURCE.md`       | Open-source release candidate.                            | Pending    |
+| 10  | `10_SPRINT_8_GRANT.md`            | Product evidence and grant readiness.                     | Pending    |
+| 11  | `11_SPRINT_9_COMMERCIAL_MODEL.md` | Commercial model (stub, deferred).                        | Stub       |
 
-|---|------|---------|--------|
-
-| 00 | `00\_MASTER.md` | Role, principles, working method. Read every session. | Standing |
-
-| 01 | `01\_PROMPT\_0A\_EXTRACTION.md` | Extract BOS from CineX into Payout Rail. | Active |
-
-| 02 | `02\_PROMPT\_0\_BASELINE.md` | Establish technical and product baseline. | Pending |
-
-| 03 | `03_SPRINT_1_ORCHESTRATION.md` | Standalone orchestration core. **SUPERSEDED by 03a.** | Superseded |
-
-| 03a | `03a_SPRINT_0_5_MVP_PATH.md` | Fix P0 gaps + critical P1 blockers; end-to-end mock payout. | Active |
-
-| 03b | `04a_SPRINT_1_5_HARDENING.md` | Deterministic idempotency, dead-module cleanup, duplicate-handling tests. | Active |
-
-| 04 | `04\_SPRINT\_2\_STACKS\_USDCX.md` | Stacks/USDCx withdrawal lifecycle. | Pending |
-
-| 04b | `04b_SPRINT_2_STACKS_USDCX.md` | Stacks/USDCx lifecycle model correction (no external verification). | Active |
-
-| 05 | `05\_SPRINT\_3\_YELLOWCARD.md` | Nigeria/NGN payout integration. | Pending |
-
-| 06 | `06\_SPRINT\_4\_EVIDENCE.md` | Settlement evidence and reconciliation. | Pending |
-
-| 07 | `07\_SPRINT\_5\_PUBLIC\_INTERFACE.md` | Public integration interface. | Pending |
-
-| 08 | `08\_SPRINT\_6\_DEMO.md` | Reproducible Nigeria payout demonstration. | Pending |
-
-| 09 | `09\_SPRINT\_7\_OPENSOURCE.md` | Open-source release candidate. | Pending |
-
-| 10 | `10\_SPRINT\_8\_GRANT.md` | Product evidence and grant readiness. | Pending |
-
+Note: Sprint 3 is intentionally deferred until after Sprint 4. That is why its file is numbered `06_` while Sprint 4 is `05_`. The table lists them in execution order, not filename order.
 \---
 
 \## Standing Constraints
