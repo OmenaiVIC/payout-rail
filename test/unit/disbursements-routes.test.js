@@ -68,12 +68,12 @@ function createRowStore(db) {
     return { changes: 1, rows: [] };
   });
 
-  db.when(/UPDATE disbursements SET preflight_result = \$4/, ({ params }) => {
+  db.when(/UPDATE disbursements SET preflight_result = \$1/, ({ params }) => {
     if (row) row.preflight_result = params[0];
     return { changes: 1, rows: [] };
   });
 
-  db.when(/UPDATE disbursements SET manual_review_at = \$4/, ({ params }) => {
+  db.when(/UPDATE disbursements SET manual_review_at = \$1/, ({ params }) => {
     if (row) row.manual_review_at = params[0];
     return { changes: 1, rows: [] };
   });

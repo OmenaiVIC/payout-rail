@@ -79,7 +79,7 @@ describe('G-08: attestation_confirmed → destination_release_unobserved (begin)
     assert.equal(evidenceSource.statusOf(ID), RS.OBSERVED_CONFIRMED, 'surface evidence left untouched');
     assert.equal(adaptersFor(ctx).xreserve.calls.observeDestinationRelease.length, 0,
       'beginning the observation performs no external read or call (G-08)');
-    const upsert = db.findCall(/UPDATE disbursements SET release_status = \$4/);
+    const upsert = db.findCall(/UPDATE disbursements SET release_status = \$1/);
     assert.ok(upsert && upsert.params[0] === RS.UNOBSERVED, 'release_status pinned unobserved on entry');
   });
 });

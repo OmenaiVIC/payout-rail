@@ -98,13 +98,13 @@ export function createV1Store(db, { presetRow = null } = {}) {
     payout_id: (v) => { row.payout_id = v; },
     release_status: (v) => { row.release_status = v; },
   };
-  db.when(/UPDATE disbursements SET (settled_at|failed_at|cancelled_at|manual_review_at|external_tx_id|attestation_id|payout_id|release_status) = \$4/, ({ params, sql }) => {
-    const field = /UPDATE disbursements SET (\w+) = \$4/.exec(sql);
+  db.when(/UPDATE disbursements SET (settled_at|failed_at|cancelled_at|manual_review_at|external_tx_id|attestation_id|payout_id|release_status) = \$1/, ({ params, sql }) => {
+    const field = /UPDATE disbursements SET (\w+) = \$1/.exec(sql);
     if (field && scalarFields[field[1]]) scalarFields[field[1]](params[0]);
     return { changes: 1, rows: [] };
   });
 
-  db.when(/UPDATE disbursements SET preflight_result = \$4/, ({ params }) => {
+  db.when(/UPDATE disbursements SET preflight_result = \$1/, ({ params }) => {
     if (row) row.preflight_result = params[0];
     return { changes: 1, rows: [] };
   });

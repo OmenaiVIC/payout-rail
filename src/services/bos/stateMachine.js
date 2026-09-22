@@ -358,7 +358,7 @@ export async function executeTransition(disbursement, toState, context, override
   // Merge extra fields if provided (e.g., external_tx_id, preflight_result)
   const extraFields = [];
   const extraValues = [];
-  let paramIdx = 4;
+  let paramIdx = 1;
   for (const [field, encode] of Object.entries(PERSISTED_ACTION_FIELDS)) {
     if (mergedDetails[field] === undefined) continue;
     extraFields.push(`${field} = $${paramIdx}`);

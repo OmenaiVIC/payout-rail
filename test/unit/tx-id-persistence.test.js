@@ -65,7 +65,7 @@ describe('G-05: submitBurn persists external_tx_id on the disbursement row', () 
     assert.equal(result.success, true, `transition failed: ${result.error}`);
     assert.equal(result.new_state, S.BURN_SUBMITTED);
 
-    const upsert = db.findCall(/UPDATE disbursements SET external_tx_id = \$4/);
+    const upsert = db.findCall(/UPDATE disbursements SET external_tx_id = \$1/);
     assert.ok(upsert, 'expected an UPDATE that persists external_tx_id');
     assert.equal(upsert.params[0], result.details.external_tx_id, 'the persisted value is the burn tx id');
     assert.equal(upsert.params[1], 'd-tx', 'the row is targeted by id');
@@ -114,7 +114,7 @@ describe('G-05: attestation_id / release_status / payout_id persist for their le
     assert.equal(result.success, true, `transition failed: ${result.error}`);
     assert.equal(result.new_state, S.ATTESTATION_REQUESTED);
 
-    const upsert = db.findCall(/UPDATE disbursements SET attestation_id = \$4/);
+    const upsert = db.findCall(/UPDATE disbursements SET attestation_id = \$1/);
     assert.ok(upsert, 'expected an UPDATE that persists attestation_id');
     assert.equal(upsert.params[0], result.details.attestation_id, 'persisted value matches the attestation returned');
     assert.equal(adapters.xreserve.calls.requestAttestation[0].tx_id, '0xburn-1');
@@ -141,12 +141,12 @@ describe('G-05: attestation_id / release_status / payout_id persist for their le
     assert.equal(result.success, true, `transition failed: ${result.error}`);
     assert.equal(result.new_state, S.DESTINATION_RELEASE_UNOBSERVED);
 
-    const upsert = db.findCall(/UPDATE disbursements SET release_status = \$4/);
+    const upsert = db.findCall(/UPDATE disbursements SET release_status = \$1/);
     assert.ok(upsert, 'expected an UPDATE that persists release_status');
     assert.equal(upsert.params[0], 'unobserved', 'the observation is pinned to unobserved');
     assert.equal(adapters.xreserve.calls.observeDestinationRelease.length, 0,
       'beginning the observation performs no external read or call (G-08)');
-    assert.equal(db.countMatching(/UPDATE disbursements SET release_id = \$4/), 0,
+    assert.equal(db.countMatching(/UPDATE disbursements SET release_id = \$1/), 0,
       'no fabricated release_id is ever written');
   });
 
@@ -189,7 +189,7 @@ describe('G-05: attestation_id / release_status / payout_id persist for their le
     assert.equal(result.success, true, `transition failed: ${result.error}`);
     assert.equal(result.new_state, S.YELLOWCARD_PAYOUT_SUBMITTED);
 
-    const upsert = db.findCall(/UPDATE disbursements SET payout_id = \$4/);
+    const upsert = db.findCall(/UPDATE disbursements SET payout_id = \$1/);
     assert.ok(upsert, 'expected an UPDATE that persists payout_id');
     assert.equal(upsert.params[0], result.details.payout_id, 'persisted value matches the payout returned');
     assert.equal(upsert.params[1], 'd-tx');
@@ -209,7 +209,7 @@ describe('G-05: whitespace-only PERSISTED_ACTION_FIELDS are untouched', () => {
       'test',
     );
 
-    const updates = db.callsMatching(/UPDATE disbursements SET (attestation_id|release_id|payout_id) = \$4/);
+    const updates = db.callsMatching(/UPDATE disbursements SET (attestation_id|release_id|payout_id) = \$1/);
     assert.equal(updates.length, 0, 'no sibling id column should be written by the burn leg');
   });
 });

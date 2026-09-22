@@ -88,7 +88,7 @@ test('executeTransition persists preflight_result as JSON on the disbursement ro
   assert.equal(result.success, true);
   assert.equal(result.new_state, S.PREFLIGHT_CHECK);
 
-  const call = db.findCall(/UPDATE disbursements SET preflight_result = \$4/);
+  const call = db.findCall(/UPDATE disbursements SET preflight_result = \$1/);
   assert.ok(call, 'a preflight_result update was written');
   const parsed = JSON.parse(call.params[0]);
   assert.equal(typeof parsed.ok, 'boolean');
