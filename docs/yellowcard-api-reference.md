@@ -12,6 +12,7 @@ the Sprint 3 auth/payload rework is measured against (see GAP_REGISTER G-07/G-18
 > assumption carried by the adapter, not a claim that it works against the API.
 
 Source documents (retrieved Sprint 3):
+
 - Auth: `https://docs.yellowcard.engineering/docs/authentication-api`
 - Submit payment: `https://docs.yellowcard.engineering/reference/submit-payment`
 - Webhooks: `https://docs.yellowcard.engineering/docs/webhooks-api`
@@ -49,10 +50,10 @@ Adapter implementation: `_computeAuth` / `_headers` in
 
 ## 2. Base URLs / environments
 
-| Env | Base URL |
-|---|---|
-| Production | `https://api.yellowcard.io/business` |
-| Sandbox | `https://sandbox.api.yellowcard.io/business` |
+| Env        | Base URL                                     |
+| ---------- | -------------------------------------------- |
+| Production | `https://api.yellowcard.io/business`         |
+| Sandbox    | `https://sandbox.api.yellowcard.io/business` |
 
 Config via `YELLOW_CARD_API_URL`; `YELLOW_CARD_ENV` is read but
 **[DEAD — unused]** (deferred to the G-20 sandbox loop). **[UNVERIFIED]**
@@ -81,6 +82,7 @@ subset:
 ```
 
 Notable decisions:
+
 - `sequenceId` is the documented idempotency key (from the caller's
   `idempotency_key`). The legacy `X-Idempotency-Key` header was removed because
   the Sends model carries it in the body.
@@ -89,7 +91,7 @@ Notable decisions:
 - `amount` (USD) is omitted; only `localAmount` is sent ("amount OR localAmount,
   not both").
 - `channelType` + `country` + `currency` select the channel; the alternative
-  documented `channelId` selector and  the `reason` field are **[UNVERIFIED]** and
+  documented `channelId` selector and the `reason` field are **[UNVERIFIED]** and
   not sent.
 - `callbackUrl` has no documented Sends field; the caller's `callback_url` is
   accepted but not placed on the wire **[UNVERIFIED]**.
@@ -97,6 +99,14 @@ Notable decisions:
 Response normalization (`submitSend`): `send_id` = `data.id || data.paymentId ||
 data.sendId`; `status` through `normalizeStatus` (`successful` → `completed`).
 **[UNVERIFIED]** canonical id field + status vocabulary.
+
+### Known limitation: `sender` field omitted
+
+The Yellow Card docs mark the `sender` object as **required** on `POST /business/send`. The adapter currently **omits** `sender` because the BOS has no sender KYC model — there is no field on `disbursements` that corresponds to a sender identity.
+
+**Consequence:** the first `submitSend` call against the sandbox will likely be **rejected** by Yellow Card with a validation error. This is a correct, understood consequence of the missing sender model, not a bug in the adapter.
+
+**Prerequisite for sandbox verification:** a `sender` source must be added (either a per-disbursement sender field, a configured default sender, or a caller-supplied sender object) before sandbox verification can succeed.
 
 ## 4. Lookup — `GET /business/send/{sendId}`
 

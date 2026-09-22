@@ -27,6 +27,7 @@ G-07 / CLAIMS_REGISTER:53, :82 captured the adapter drifting from the provider's
 ## 2. Changes made (wire level only)
 
 ### 2.1 Authentication — `src/services/bos/yellowcardAdapter.js`
+
 - `_computeAuth` now emits `Authorization: YcHmacV1 {apiKey}:{signature}` where `signature` is the
   **base64** HMAC-SHA256 over `timestamp + signedPath + method` (GET/DELETE) or
   `timestamp + signedPath + method + base64(sha256(body))` (POST/PUT).
@@ -39,6 +40,7 @@ G-07 / CLAIMS_REGISTER:53, :82 captured the adapter drifting from the provider's
   the raw body string so auth binds the real request target and payload.
 
 ### 2.2 Submit Send — `yellowcardAdapter.submitSend`
+
 Rewritten to the documented Sends body:
 
 ```json
@@ -61,6 +63,7 @@ Rewritten to the documented Sends body:
   `X-Idempotency-Key` header. Sequence is the idempotency key.
 
 ### 2.3 Webhooks — `src/services/bos/webhookVerifier.js` + `src/routes/webhooks.js`
+
 - `verifyYellowCardWebhook` checks **`x-yc-signature` first**, then the legacy `x-signature`,
   `x-yellowcard-signature`, `x-hub-signature-256`.
 - `verifyHmac` accepts hex, base64, and base64url encodings plus `sha256=` / `hmac-sha256,` prefixes,
@@ -71,6 +74,7 @@ Rewritten to the documented Sends body:
   canonical encoding.
 
 ### 2.4 Reference + registers
+
 - `docs/yellowcard-api-reference.md` **created** (G-18, CLAIMS_REGISTER:54 resolved): auth scheme, base-URL
   table (prod `https://api.yellowcard.io/business`, sandbox `https://sandbox.api.yellowcard.io/business`),
   submit/lookup payloads, webhook verification, and an explicit **UNVERIFIED** list.
@@ -80,12 +84,12 @@ Rewritten to the documented Sends body:
 
 ## 3. Tests added (28, all wire-contract, no network)
 
-| File | Covers |
-|---|---|
-| `test/unit/yellowcard-auth.test.js` | message shape (path+method, no body on GET, body hash on POST), base64 (44-char) signature, timestamp header, fail-closed on missing key/secret, query excluded |
-| `test/unit/yellowcard-submit-send-contract.test.js` | bank body, momo mapping, `accountName` omitted, default currency NGN, permanent 4xx classification |
-| `test/unit/yellowcard-lookup-contract.test.js` | GET `/business/send/{id}` + signed path, status normalization, `listSends`/`getSendFee` signed-path-without-query, `getPayoutStatus` alias, 4xx permanent |
-| `test/unit/yellowcard-webhook.test.js` | `x-yc-signature` base64 + `sha256=` prefix, legacy hex candidates, base64-vs-hex rejection, tamper/wrong-secret/missing/unconfigured, sign/verify round-trip, hex+base64+base64url encodings |
+| File                                                | Covers                                                                                                                                                                                       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/unit/yellowcard-auth.test.js`                 | message shape (path+method, no body on GET, body hash on POST), base64 (44-char) signature, timestamp header, fail-closed on missing key/secret, query excluded                              |
+| `test/unit/yellowcard-submit-send-contract.test.js` | bank body, momo mapping, `accountName` omitted, default currency NGN, permanent 4xx classification                                                                                           |
+| `test/unit/yellowcard-lookup-contract.test.js`      | GET `/business/send/{id}` + signed path, status normalization, `listSends`/`getSendFee` signed-path-without-query, `getPayoutStatus` alias, 4xx permanent                                    |
+| `test/unit/yellowcard-webhook.test.js`              | `x-yc-signature` base64 + `sha256=` prefix, legacy hex candidates, base64-vs-hex rejection, tamper/wrong-secret/missing/unconfigured, sign/verify round-trip, hex+base64+base64url encodings |
 
 Harness: per-file `globalThis.fetch` stub capturing `{url, options}`, env set at load,
 cache-busted dynamic imports (`?case=N`), expected signature recomputed locally from the captured
@@ -93,17 +97,21 @@ cache-busted dynamic imports (`?case=N`), expected signature recomputed locally 
 `test/unit/webhook-verify.test.js` (hex, G-06) remains green.
 
 ## 4. Not changed
+
 - No schema, route contract, or caller changes; `classifyError`, `YELLOW_CARD_ENV`, and all env var names
   unchanged; `.env.example` untouched; the E2E and harness tests still use the mock adapter.
 
 ## 5. UNVERIFIED (needs a live sandbox / credentials — G-20)
+
 - `localAmount` unit/precision (kobo vs USD amounts) and whether `amount` must be absent when present.
 - `networkId` mapping and any country/currency allowlist (`NG`/`NGN` assumed for our use case).
 - `forceAccept: true` semantics and `channelType` vs `channelId` equivalence.
 - Whether `sender` is truly required at submit time (omitted).
 - Webhook header casing and the exact live base64/hex variants Yellow Card actually sends.
+- **Sender field omitted** — `sender` is required by the Yellow Card docs but has no source in the BOS model. Sandbox verification will fail at `submitSend` until a sender source is added. This is a known, documented gap, not a defect.
 
 ## 6. Result
+
 - Full suite: **180 pass, 1 skip** (181 tests). Baseline 152 pass / 1 skip + 28 new = 180 / 1.
 - All provider-facing deltas now match `docs/yellowcard-api-reference.md`, which becomes the acceptance
   baseline for the G-20 sandbox loop.
