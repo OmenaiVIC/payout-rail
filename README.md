@@ -336,9 +336,11 @@ a `404`, never a `500`.
 ## Webhooks
 
 - `POST /api/bos/webhooks/yellowcard` — Yellow Card payout callbacks. The HMAC is
-  verified over the **raw** body (`x-signature`, `x-yellowcard-signature`, or
-  `x-hub-signature-256`; `sha256=`/`hmac-sha256,` prefixes accepted) using
-  `YELLOW_CARD_WEBHOOK_SECRET`. Unsigned/invalid payloads are rejected with `401`
+  verified over the **raw** body using `YELLOW_CARD_WEBHOOK_SECRET`;
+  `x-yc-signature` (base64, the provider's scheme) is checked first, then the
+  legacy `x-signature` / `x-yellowcard-signature` / `x-hub-signature-256`
+  candidates (hex); hex/base64/base64url signatures and `sha256=`/`hmac-sha256,`
+  prefixes are accepted. Unsigned/invalid payloads are rejected with `401`
   before any state is touched; when no secret is configured the endpoint fails
   **closed** (reject, never trust). Duplicate valid deliveries are acknowledged
   but do not double-advance, and each verified payload is recorded in the evidence

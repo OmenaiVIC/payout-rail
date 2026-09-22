@@ -17,8 +17,18 @@ function getYellowCardSecret() { return process.env.YELLOW_CARD_WEBHOOK_SECRET |
 /**
  * Verify HMAC-SHA256 signature of a webhook payload
  *
+ * Yellow Card signs webhooks with a BASE64 digest (docs /docs/webhooks-api,
+ * example 'fakno+9epoa/obe='); xReserve and legacy callers use hex. One check
+ * therefore accepts all three encodings: the expected digest is computed once
+ * (hex internally, base64 string for the fast path), the documented prefixes
+ * ('sha256=', 'hmac-sha256,') are stripped, and the supplied signature is
+ * decoded as hex / base64 / base64url and compared in constant time — only
+ * against buffers of the same byte length (timingSafeEqual throws otherwise,
+ * and a wrong-encoding decode has the wrong length so it is excluded cheaply).
+ * Fail-closed: no payload / signature / secret rejects.
+ *
  * @param {string|Buffer} payload — raw request body
- * @param {string} signature — signature from header (hex or base64)
+ * @param {string} signature — signature from header (hex, base64, or base64url; optional prefix)
  * @param {string} secret — shared secret
  * @param {string} algorithm — 'sha256' (default)
  * @returns {boolean}
@@ -26,28 +36,44 @@ function getYellowCardSecret() { return process.env.YELLOW_CARD_WEBHOOK_SECRET |
 function verifyHmac(payload, signature, secret, algorithm = 'sha256') {
   if (!payload || !signature || !secret) return false;
 
-  const expected = crypto
+  const expectedHex = crypto
     .createHmac(algorithm, secret)
     .update(payload, 'utf8')
     .digest('hex');
+  const expectedBase64 = Buffer.from(expectedHex, 'hex').toString('base64');
+  const expectedBuf = Buffer.from(expectedHex, 'hex');
 
-  // Support both hex and base64 signatures
-  let sigHex = signature;
-  if (signature.startsWith('sha256=')) {
-    sigHex = signature.slice(7);
-  } else if (signature.startsWith('hmac-sha256,')) {
-    sigHex = signature.slice(12);
+  // Strip documented signature prefixes before decoding.
+  let sig = signature.trim();
+  if (sig.startsWith('sha256=')) {
+    sig = sig.slice(7);
+  } else if (sig.startsWith('hmac-sha256,')) {
+    sig = sig.slice(12);
   }
 
-  // Constant-time comparison
-  try {
-    const sigBuf = Buffer.from(sigHex, 'hex');
-    const expectedBuf = Buffer.from(expected, 'hex');
-    if (sigBuf.length !== expectedBuf.length) return false;
-    return crypto.timingSafeEqual(sigBuf, expectedBuf);
-  } catch {
-    return false;
+  // Fast path: exact base64 match (the encoding Yellow Card uses). A string
+  // equal to a valid base64 digest can never also be a valid hex digest —
+  // base64 of 32 bytes is 44 chars, hex is 32 — so this cannot false-positive.
+  if (sig === expectedBase64) return true;
+
+  // Constant-time comparison across candidate encodings (hex / base64 /
+  // base64url): a hex sig decodes via base64 too, but to the wrong length,
+  // so the length guard keeps timingSafeEqual on equal-length buffers only.
+  for (const enc of ['hex', 'base64', 'base64url']) {
+    let cand;
+    try {
+      cand = Buffer.from(sig, enc);
+    } catch {
+      continue;
+    }
+    if (cand.length !== expectedBuf.length) continue;
+    try {
+      if (crypto.timingSafeEqual(cand, expectedBuf)) return true;
+    } catch {
+      // fall through to next candidate
+    }
   }
+  return false;
 }
 
 /**
@@ -82,7 +108,9 @@ function verifyXReserveWebhook(rawBody, headers) {
 /**
  * Verify a Yellow Card webhook
  *
- * Headers checked: X-Signature, X-YellowCard-Signature
+ * Headers checked (in order): X-YC-Signature (the header Yellow Card documents —
+ * base64), then the legacy x-signature / x-yellowcard-signature / x-hub-signature-256
+ * candidates retained for compatibility.
  * Fail-closed: an unconfigured secret rejects, rather than skipping, checks.
  * @param {string|Buffer} rawBody
  * @param {Object} headers — request headers
@@ -95,6 +123,7 @@ function verifyYellowCardWebhook(rawBody, headers) {
   }
 
   const signature =
+    headers['x-yc-signature'] ||
     headers['x-signature'] ||
     headers['x-yellowcard-signature'] ||
     headers['x-hub-signature-256'] ||
