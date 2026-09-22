@@ -10,7 +10,8 @@
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
     "test:unit": "node --test --test-concurrency=1 \"test/unit/**/*.test.js\"",
     "test:e2e": "node --test --test-concurrency=1 \"test/e2e/**/*.test.js\"",
-    "test:integration": "node --test --test-concurrency=1 \"test/integration/**/*.test.js\""
+    "test:integration": "node --test --test-concurrency=1 \"test/integration/**/*.test.js\"",
+    "demo:payout:ngn": "node scripts/demo-payout-ngn.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
