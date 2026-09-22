@@ -83,6 +83,10 @@
 - **Fix direction:** obtain/regenerate the provider API reference, reimplement auth to the documented
   scheme, add contract tests against the sandbox (see `flutterwave-testing`/`flutterwave-transfers`
   skills for repeatable test strategy), verify before go-live. **Must ship before Sprint 3.**
+- **Status (Sprint 3): RESOLVED-IN-MODEL.** `_computeAuth` reimplemented to `YcHmacV1 {apiKey}:{signature}` +
+  `X-YC-Timestamp` over timestamp + signed path + method (+ base64 body hash for POST/PUT); the missing
+  reference doc was created (G-18); 28 wire-contract tests added (`test/unit/yellowcard-*.test.js`).
+  G-07's remaining **live sandbox** verification is tracked by G-20 (no credentials).
 
 ### G-08  xReserve "destination release" is a fabricated, unverifiable confirmation  [P1]
 - **Evidence:** `releaseDestination` returns `{release_id: attestation_id, status:'confirmed'}` with no
@@ -206,6 +210,8 @@
 - **Evidence:** `yellowcardAdapter.js:13` references a file that does not exist.
 - **Fix direction:** add a current provider API reference (auth, endpoints, payloads, webhooks,
   sandbox notes) as a vetted source; treat it as the acceptance baseline for G-07.
+- **Status (Sprint 3): RESOLVED.** `docs/yellowcard-api-reference.md` created with auth, Sends
+  submit/lookup payloads, webhooks, base-URL table, and the explicit UNVERIFIED list.
 
 ### G-19  `attributable_funds` gate self-references `disbursements` and fails the FIRST disbursement of each `source_reference`  [P2]
 - **Evidence:** requires a prior row with same `source_reference` (`payoutGates.js:134-146`); escrow is
@@ -219,7 +225,8 @@
 ## P3 — future enhancements
 
 - **G-20** Provider sandbox loop for Yellow Card (auth → send → status → webhook) with repeatable
-  fixtures; classify as SANDBOX VERIFIED before any prod claim.
+  fixtures; classify as SANDBOX VERIFIED before any prod claim. (Sprint 3 added mock wire-contract
+  fixtures `test/unit/yellowcard-*.test.js`; the live loop still needs credentials.)
 - **G-21** Event-sourcing/outbox for state transitions and idempotent webhook/worker processing
   (see `idempotent-financial-workflows` skill guidance).
 - **G-22** Exchange-rate oracle + TTL (`hasValidExchangeRate`) so `amount_ngn_expected` is market-based
