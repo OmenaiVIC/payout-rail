@@ -4,6 +4,7 @@ import cors from 'cors';
 import bosMonitoringRouter from './routes/bosMonitoring.js';
 import webhooksRouter from './routes/webhooks.js';
 import disbursementsRouter from './routes/disbursements.js';
+import disbursementsV1Router from './routes/disbursementsV1.js';
 import { initDb, getDb } from './database.js';
 import { getXReserveAdapter, getStacksAdapter, getYellowCardAdapter } from './services/bos/bridgeAdapterFactory.js';
 import monitorJob from './services/bos/monitoring/monitorJob.js';
@@ -97,6 +98,7 @@ if (process.env.VERCEL) {
 app.use('/api/bos/monitoring', bosMonitoringRouter);
 app.use('/api/bos/webhooks', webhooksRouter);
 app.use('/api/disbursements', disbursementsRouter);
+app.use('/api/v1/disbursements', disbursementsV1Router);
 
 app.use((err, req, res, next) => {
   const msg = (err && err.message) ? err.message : String(err);

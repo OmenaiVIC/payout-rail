@@ -1,18 +1,17 @@
 /**
- * Disbursement API — create / read / advance / retry / recover.
+ * Versioned public disbursement API — `/api/v1/disbursements/*` (Sprint 5).
  *
- * @deprecated — new integrations must target `/api/v1/disbursements/*`
- * (see ./disbursementsV1.js). This Sprint 0.5 router is kept functional for
- * backward compatibility and must not be deleted.
+ * The official integration surface for external Stacks applications. Auth is the
+ * same fail-closed shared bearer token as v0 (`BOS_API_TOKEN`), but responses use
+ * a normalized ErrorResponse body `{ error, error_code, details? }` so callers get
+ * a machine-readable contract on every failure path.
  *
- * Auth is fail-closed: every route requires a bearer token matching
- * BOS_API_TOKEN. If BOS_API_TOKEN is unset, requests are rejected unless the
- * operator explicitly opts into local development with
- * BOS_ALLOW_UNAUTHENTICATED_DEV=true.
+ * All schemas (request / response / error) are documented in `docs/SPRINT_5_PLAN.md`
+ * §3 and mirrored in `README.md`. The Sprint 0.5 router (`./disbursements.js`) is
+ * deprecated but kept functional.
  */
 
 import express from 'express';
-import crypto from 'crypto';
 import {
   initiateDisbursement,
   getDisbursement,
@@ -21,49 +20,13 @@ import {
   recoverStuckDisbursement,
   listDisbursements,
 } from '../services/bos/disbursementService.js';
+import { requireApiToken } from './disbursements.js';
 
 const router = express.Router();
 
 const MAX_ADVANCE_STEPS = 25;
 
-/** Constant-time compare that never leaks length via early return. */
-function tokenMatches(presented, configured) {
-  const a = crypto.createHash('sha256').update(String(presented)).digest();
-  const b = crypto.createHash('sha256').update(String(configured)).digest();
-  return crypto.timingSafeEqual(a, b);
-}
-
-/**
- * Fail-closed bearer-token gate for the disbursement API routes.
- * Compares in constant time (never leaks length via early return).
- * @param {boolean} [normalize] — v1 callers pass `{ normalize: true }` to receive
- * the normalized ErrorResponse body (`error_code` included); the legacy body
- * `{ error: 'unauthorized' }` remains the default so v0 contracts are unchanged.
- */
-export function requireApiToken(req, res, next, { normalize = false } = {}) {
-  const deny = () => (
-    normalize
-      ? res.status(401).json({ error: 'unauthorized', error_code: 'unauthorized' })
-      : res.status(401).json({ error: 'unauthorized' })
-  );
-
-  const configured = process.env.BOS_API_TOKEN;
-  const header = req.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  const presented = match ? match[1] : '';
-
-  if (configured && presented && tokenMatches(presented, configured)) {
-    return next();
-  }
-
-  if (!configured && process.env.BOS_ALLOW_UNAUTHENTICATED_DEV === 'true') {
-    return next();
-  }
-
-  return deny();
-}
-
-router.use(requireApiToken);
+router.use((req, res, next) => requireApiToken(req, res, next, { normalize: true }));
 
 function parseSteps(raw) {
   const n = Number.parseInt(raw, 10);
@@ -82,8 +45,21 @@ function sendError(res, next, err) {
   return next(err);
 }
 
+function notFound(res) {
+  return res.status(404).json({ error: 'not found', error_code: 'not_found' });
+}
+
+/** Normalized 409 for a failed state-machine operation. */
+function conflict(res, result, fallbackCode) {
+  return res.status(409).json({
+    error: (result && result.error) || 'operation not permitted in current state',
+    error_code: (result && result.error_code) || fallbackCode,
+    ...(result && result.details ? { details: result.details } : {}),
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/disbursements — create
+// POST /api/v1/disbursements — create (idempotent; §5 of docs/SPRINT_5_PLAN.md)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/', async (req, res, next) => {
   try {
@@ -107,7 +83,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/disbursements — bounded list
+// GET /api/v1/disbursements — bounded, paginated list
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res, next) => {
   try {
@@ -127,12 +103,12 @@ router.get('/', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/disbursements/:id — read one (with external refs + audit log)
+// GET /api/v1/disbursements/:id — read one (with external refs + audit log)
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/:id', async (req, res, next) => {
   try {
     const disbursement = await getDisbursement(req.params.id);
-    if (!disbursement) return res.status(404).json({ error: 'not found' });
+    if (!disbursement) return notFound(res);
     return res.json({ disbursement });
   } catch (err) {
     return next(err);
@@ -140,12 +116,12 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/disbursements/:id/advance?steps=n — advance one (or n) step(s)
+// POST /api/v1/disbursements/:id/advance?steps=n — advance one (or n) step(s)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/:id/advance', async (req, res, next) => {
   try {
     const existing = await getDisbursement(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'not found' });
+    if (!existing) return notFound(res);
 
     const steps = parseSteps(req.query.steps);
     let result = null;
@@ -155,43 +131,43 @@ router.post('/:id/advance', async (req, res, next) => {
     }
 
     const disbursement = await getDisbursement(req.params.id);
-    const status = result && !result.success ? 409 : 200;
-    return res.status(status).json({ result, disbursement });
+    if (result && !result.success) return conflict(res, result, 'advance_conflict');
+    return res.json({ result, disbursement });
   } catch (err) {
     return next(err);
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/disbursements/:id/retry — retry a failed disbursement
+// POST /api/v1/disbursements/:id/retry — retry a failed disbursement
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/:id/retry', async (req, res, next) => {
   try {
     const existing = await getDisbursement(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'not found' });
+    if (!existing) return notFound(res);
 
     const result = await retryDisbursement(req.params.id);
     const disbursement = await getDisbursement(req.params.id);
-    const status = result && !result.success ? 409 : 200;
-    return res.status(status).json({ result, disbursement });
+    if (result && !result.success) return conflict(res, result, 'retry_conflict');
+    return res.json({ result, disbursement });
   } catch (err) {
     return next(err);
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/disbursements/:id/recover — escalate a stuck disbursement
+// POST /api/v1/disbursements/:id/recover — escalate a stuck disbursement
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/:id/recover', async (req, res, next) => {
   try {
     const existing = await getDisbursement(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'not found' });
+    if (!existing) return notFound(res);
 
     const reason = (req.body && req.body.reason) || 'stuck';
     const result = await recoverStuckDisbursement(req.params.id, reason);
     const disbursement = await getDisbursement(req.params.id);
-    const status = result && !result.success ? 409 : 200;
-    return res.status(status).json({ result, disbursement });
+    if (result && !result.success) return conflict(res, result, 'recover_conflict');
+    return res.json({ result, disbursement });
   } catch (err) {
     return next(err);
   }
