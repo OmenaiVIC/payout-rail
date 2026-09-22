@@ -19,12 +19,16 @@ import {
   retryDisbursement,
   recoverStuckDisbursement,
   listDisbursements,
+  approveDisbursement,
+  resolveDisbursement,
+  getSettlementReceipt,
 } from '../services/bos/disbursementService.js';
 import { requireApiToken } from './disbursements.js';
 
 const router = express.Router();
 
 const MAX_ADVANCE_STEPS = 25;
+const RESOLUTIONS = ['settled', 'failed', 'cancelled'];
 
 router.use((req, res, next) => requireApiToken(req, res, next, { normalize: true }));
 
@@ -116,6 +120,19 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/disbursements/:id/receipt — settlement receipt (Sprint 4 generator,
+// unmodified — the service layer guards existence before it is called)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id/receipt', async (req, res, next) => {
+  try {
+    const receipt = await getSettlementReceipt({ disbursementId: req.params.id });
+    return res.json({ receipt });
+  } catch (err) {
+    return sendError(res, next, err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/v1/disbursements/:id/advance?steps=n — advance one (or n) step(s)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/:id/advance', async (req, res, next) => {
@@ -170,6 +187,56 @@ router.post('/:id/recover', async (req, res, next) => {
     return res.json({ result, disbursement });
   } catch (err) {
     return next(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/disbursements/:id/approve — two-person approval contribution
+// Gated by the shared token (Option C, Sprint 5). `approver` is a caller-supplied
+// recorded label; RBAC is deferred (see docs/POSTPONED_BACKLOG.md, P2 entry).
+// Idempotent per (disbursement_id, approver).
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:id/approve', async (req, res, next) => {
+  try {
+    const approver = String((req.body && req.body.approver) || '').trim();
+    if (!approver) {
+      const err = new Error('Missing required field: approver');
+      err.error_code = 'invalid_body';
+      err.statusCode = 400;
+      err.details = { missing: ['approver'] };
+      throw err;
+    }
+    const result = await approveDisbursement({ disbursementId: req.params.id, approver });
+    return res.json(result);
+  } catch (err) {
+    return sendError(res, next, err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/disbursements/:id/resolve — resolve a manual_review disbursement
+// to a terminal state (`settled` | `failed` | `cancelled`). Maps onto the existing
+// state-machine transitions; the open manual_review_queue row is resolved.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:id/resolve', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    if (!RESOLUTIONS.includes(b.resolution)) {
+      const err = new Error(`Invalid resolution: ${String(b.resolution || '').trim() || '(missing)'}`);
+      err.error_code = 'invalid_body';
+      err.statusCode = 400;
+      err.details = { field: 'resolution', allowed: RESOLUTIONS };
+      throw err;
+    }
+    const { result, disbursement } = await resolveDisbursement({
+      disbursementId: req.params.id,
+      resolution: b.resolution,
+      reviewer: b.reviewer || null,
+      note: b.note || null,
+    });
+    return res.json({ result, disbursement });
+  } catch (err) {
+    return sendError(res, next, err);
   }
 });
 

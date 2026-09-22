@@ -8,10 +8,22 @@ import { createHash, randomUUID } from 'crypto';
 import { DisbursementState, TERMINAL_STATES } from './types.js';
 import { executeTransition, getValidNextStates } from './stateMachine.js';
 import { recordWebhookPayload, deriveWebhookEventId, hashPayload } from './evidenceCollector.js';
+import { TwoPersonApproval } from './twoPersonApproval.js';
+import { resolveManualReview } from './transitionActions.js';
+import { generateSettlementReceipt } from './settlementReceipt.js';
 
 // USDCx has 6 decimal places; amount_usdcx is expressed in base units.
 const USDCX_DECIMALS = 6;
 const NGN_MINOR_UNITS_PER_NAIRA = 100;
+
+const twoPersonApproval = new TwoPersonApproval();
+
+/** Manual-review resolutions map 1:1 onto existing terminal state-machine exits. */
+const RESOLUTION_TARGETS = {
+  settled: DisbursementState.SETTLED,
+  failed: DisbursementState.FAILED,
+  cancelled: DisbursementState.CANCELLED,
+};
 
 /**
  * Convert a USDCx base-unit amount into the expected NGN payout in minor
@@ -587,4 +599,133 @@ export async function handleYellowCardWebhook(payload, { signatureValid = false 
 
   log.info({ payout_id: payoutId, status: webhookStatus }, 'Webhook status not actionable');
   return { processed: false, reason: `unhandled status: ${webhookStatus}` };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint 5 — public integration surface (approve / resolve / receipt)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function notFoundError(disbursementId) {
+  const err = new Error(`Disbursement not found: ${disbursementId}`);
+  err.error_code = 'not_found';
+  err.statusCode = 404;
+  return err;
+}
+
+/**
+ * Record a two-person approval contribution (gated by the shared token at the
+ * route layer; RBAC is deferred — `approver` is a caller-supplied label).
+ *
+ * Idempotent per (disbursement_id, approver): `twoPersonApproval.approve` uses
+ * `ON CONFLICT DO NOTHING`, so repeating the same approver never double-counts.
+ *
+ * @param {Object}           p
+ * @param {string}           p.disbursementId
+ * @param {string}           p.approver — recorded label of the approver
+ * @returns {Promise<{ disbursement_id: string, approver: string, approved: boolean,
+ *                     approvals_received: number, approvals_needed: 2 }>}
+ */
+export async function approveDisbursement({ disbursementId, approver }) {
+  const db = ctx().getDb();
+
+  const disbursement = await db.get(
+    `SELECT * FROM disbursements WHERE id = $1`,
+    [disbursementId]
+  );
+  if (!disbursement) throw notFoundError(disbursementId);
+
+  const result = await twoPersonApproval.approve(disbursementId, approver, ctx());
+  return { disbursement_id: disbursementId, approver, ...result };
+}
+
+/**
+ * Resolve a manual_review disbursement to a terminal state
+ * (`settled` | `failed` | `cancelled`).
+ *
+ * The resolution maps directly onto the existing state-machine transitions
+ * (manual_review → settled/failed/cancelled), whose terminal actions already
+ * clear the open manual_review_queue row. The operator attribution is written
+ * onto the queue row first (idempotent: whichever resolver runs first wins);
+ * `executeTransition` then enforces the optimistic-concurrency claim.
+ *
+ * @param {Object}  p
+ * @param {string}  p.disbursementId
+ * @param {string}  p.resolution — 'settled' | 'failed' | 'cancelled'
+ * @param {string}  [p.reviewer]  — operator label recorded as resolved_by
+ * @param {string}  [p.note]      — recorded in the transition audit details
+ * @returns {Promise<{ result: TransitionResult, disbursement: EnrichedDisbursement }>}
+ */
+export async function resolveDisbursement({
+  disbursementId,
+  resolution,
+  reviewer = null,
+  note = null,
+}) {
+  const db = ctx().getDb();
+
+  const disbursement = await db.get(
+    `SELECT * FROM disbursements WHERE id = $1`,
+    [disbursementId]
+  );
+  if (!disbursement) throw notFoundError(disbursementId);
+
+  const target = RESOLUTION_TARGETS[resolution];
+  if (!target) {
+    const err = new Error(`Invalid resolution: ${String(resolution || '').trim() || '(missing)'}`);
+    err.error_code = 'invalid_body';
+    err.statusCode = 400;
+    err.details = { field: 'resolution', allowed: Object.keys(RESOLUTION_TARGETS) };
+    throw err;
+  }
+
+  if (disbursement.status !== DisbursementState.MANUAL_REVIEW) {
+    const err = new Error(
+      `Cannot resolve a disbursement in state '${disbursement.status}'; only manual_review is resolvable`
+    );
+    err.error_code = 'wrong_state';
+    err.statusCode = 409;
+    err.details = { current_state: disbursement.status, expected_state: DisbursementState.MANUAL_REVIEW };
+    throw err;
+  }
+
+  await resolveManualReview({ db, disbursementId, resolution, resolvedBy: reviewer || 'workflow' })
+    .catch((resolveErr) => ctx().getLogger('disbursement:resolve')?.warn(
+      { id: disbursementId, error: resolveErr.message },
+      'Failed to attribute manual-review resolution'
+    ));
+
+  const result = await executeTransition(
+    disbursement,
+    target,
+    ctx(),
+    { resolution, reviewer, note },
+    'operator'
+  );
+
+  const refreshed = await getDisbursement(disbursementId);
+  return { result, disbursement: refreshed };
+}
+
+/**
+ * Settlement receipt for a disbursement, reconstructed from stored evidence.
+ *
+ * The Sprint 4 generator (`generateSettlementReceipt`) is used unmodified — it
+ * defines the receipt shape and never fabricates gaps. This wrapper only adds
+ * the fail-closed existence pre-check so an unknown disbursement returns 404
+ * instead of a 500. The returned value is the generator's output, verbatim.
+ *
+ * @param {Object} p
+ * @param {string} p.disbursementId
+ * @returns {Promise<object>} — the Sprint 4 SettlementReceipt envelope
+ */
+export async function getSettlementReceipt({ disbursementId }) {
+  const db = ctx().getDb();
+
+  const exists = await db.get(
+    `SELECT id FROM disbursements WHERE id = $1`,
+    [disbursementId]
+  );
+  if (!exists) throw notFoundError(disbursementId);
+
+  return generateSettlementReceipt({ db, disbursementId });
 }

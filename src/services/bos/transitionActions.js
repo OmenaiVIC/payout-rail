@@ -510,13 +510,15 @@ export async function enqueueManualReview({ db, disbursementId, reason }) {
 
 /**
  * Resolve any open manual-review items for the disbursement (terminal transitions).
+ * `resolvedBy` attributes the resolution (default 'workflow' keeps every internal
+ * caller byte-identical; the operator path passes the reviewer label).
  */
-export async function resolveManualReview({ db, disbursementId, resolution }) {
+export async function resolveManualReview({ db, disbursementId, resolution, resolvedBy = 'workflow' }) {
   await db.run(
     `UPDATE manual_review_queue
-     SET resolved = TRUE, resolution = $2, resolved_at = NOW(), resolved_by = 'workflow'
+     SET resolved = TRUE, resolution = $2, resolved_at = NOW(), resolved_by = $3
      WHERE disbursement_id = $1 AND resolved = FALSE`,
-    [disbursementId, resolution]
+    [disbursementId, resolution, resolvedBy]
   );
 }
 
