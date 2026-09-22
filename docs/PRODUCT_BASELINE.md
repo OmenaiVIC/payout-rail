@@ -142,9 +142,23 @@ Express app (src/index.js)
        Write-active: disbursements, disbursement_audit, external_refs, payout_gates,
                      two_person_approvals, circuit_breaker_state, bos_alerts,
                      disbursement_evidence, exchange_rates(seed)
-       Write-dead:   yellow_card_webhook_events, manual_review_queue, on_chain_events,
-                     relay_wallet_activity, external_status_snapshots, config_snapshots
+       Wired (Sprint 4): yellow_card_webhook_events, on_chain_events,
+                     external_status_snapshots, manual_review_queue
+       Removed (migrations/008_sprint_4.sql): relay_wallet_activity, config_snapshots
 ```
+
+Notes:
+- **Sprint 4 evidence model** (`evidenceCollector.js`, plan §2): every evidence record is a v1 envelope
+  `{v, event_type, source, external_ref, observed_at, status, payload_hash, verification, details}` with a
+  `crypto.randomUUID` id and a deterministic `sha256` over the stable canonical payload — **raw PII and
+  sensitive financial payloads are never stored** (hashes + sanitized summaries only). `executeTransition`
+  writes exactly one canonical `transition` record per successful transition, after the audit row, with the
+  leg's external id linked as `external_ref` (payout_id > attestation_id > external_tx_id). External-observation
+  recorders also append one `external_status_snapshots` row each.
+- The four write-dead tables are now live (G-16 closed): webhook journal rows, `on_chain_events`
+  broadcast/confirmation rows, observation snapshots, and `manual_review_queue` items via the open-row
+  `ON CONFLICT` guard (migration 008 partial unique index). `relay_wallet_activity` and `config_snapshots`
+  were dropped (reasons in `POSTPONED_BACKLOG.md` S4-1/S4-2).
 
 Notes:
 - `disbursements.external_tx_id / attestation_id / payout_id / release_status` are written by Sprint 0.5/1.5/2

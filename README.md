@@ -122,6 +122,31 @@ Sprint 1.5 (see `docs/SPRINT_1_5_REPORT.md`):
 - **`webhookVerifier.js` — converted to ESM (Sprint 0.5, G-06).** The single
   verifier for Yellow Card signatures; fail-open removed.
 
+## Evidence model (Sprint 4)
+
+Every evidence record in `disbursement_evidence` is a versioned envelope —
+`{ v, event_type, source, external_ref, observed_at, status, payload_hash,
+verification, details }` — with a `crypto.randomUUID` id and a deterministic
+`sha256` over the **stable canonical form** of the payload. **Raw PII and
+sensitive financial payloads are never stored** (hashes + sanitized summaries
+only); sensitive keys (`account_number`, `recipient`, `phone`, `email`, `bvn`,
+… ) are stripped before anything is persisted.
+
+- `executeTransition` writes **exactly one `transition` record per successful
+  transition**, after the audit row, linking the leg's external id
+  (`payout_id` > `attestation_id` > `external_tx_id`).
+- External-observation recorders (`recordApiResponse`, `recordTxHash`,
+  `recordWebhookPayload`, `recordPollResult`) also append a point-in-time
+  `external_status_snapshots` row.
+- The webhook path **awaits** the evidence write and journals a sanitized
+  summary into `yellow_card_webhook_events` (derived, redelivery-stable event
+  id; body never stored). A failed evidence/journal write is logged at ERROR —
+  never silent (approved Sprint 4 interpretation).
+- The write-dead tables are gone/closed (G-16): `on_chain_events`,
+  `external_status_snapshots`, `yellow_card_webhook_events`, and
+  `manual_review_queue` are written by their flows; `relay_wallet_activity`
+  and `config_snapshots` were dropped in `migrations/008_sprint_4.sql`.
+
 ## Routes
 
 - `GET /health`, `GET /warmup`

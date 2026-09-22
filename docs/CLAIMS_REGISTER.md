@@ -85,10 +85,10 @@
 
 ## 6. Claims register summary
 
-- **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes (3/6).
+- **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes. Sprint 4 closed G-16/G-17: **all six recorders live** (webhook, poll, manual-note, api, tx-hash, gate) plus the canonical `transition` record per successful transition and the `reconciliation_detection` type (4b writer); the four write-dead tables are wired and the two dead tables dropped (see `docs/PRODUCT_BASELINE.md`, `docs/GAP_REGISTER.md`).
 - **FALSE / DOC-DRIFT:** README env defaults (batch size, poll interval, poll attempts); "gated by CRON_SECRET" for all monitoring; transition counts in headers; `external_tx_id` write claim; creation works claim; signature verification active claim.
 - **DEAD:** `fallbackPoller`, `webhookVerifier`, `auditTimeline` (ESM/CommonJS break + not imported).
 - **SIMULATED:** xReserve attestation (Hiro proxy); xReserve destination-release **observation surface**
   (records exactly what it is told; the fabricated no-op was removed in Sprint 2); mock adapters.
 - **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint.
-- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; release-write tables; manual-review queue/resolution API; disbursement create/approve/recover API; tests.
+- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; manual-review resolution API; disbursement create/approve/recover API; tests. (Sprint 4 wired `manual_review_queue` enqueue + resolution-on-terminal, but the operator resolution API stays Sprint 5.)

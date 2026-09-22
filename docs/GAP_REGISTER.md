@@ -160,17 +160,47 @@
   `POST /workers/pipeline/run`, `/manual-review`, `/alerts/stats` etc. open when `CRON_SECRET` unset.
 - **Fix direction:** require auth on write endpoints (and warn loudly when `CRON_SECRET` unset); rate-limit reads.
 
-### G-16  Write-dead audit tables  [P2]
+### G-16  Write-dead audit tables  [P2]  — CLOSED (Sprint 4, approved plan §4)
 - **Evidence:** `yellow_card_webhook_events`, `on_chain_events`, `relay_wallet_activity`,
   `external_status_snapshots`, `config_snapshots` are created by migrations but written nowhere (grep).
 - **Fix direction:** wire the appropriate recorder into transitions/evidence/quality-of-life or drop
   them; don't carry unused tables.
+- **Disposition (Sprint 4):**
+  - `yellow_card_webhook_events` — **WIRED** (`disbursementService.js`): `handleYellowCardWebhook`
+    inserts one journal row per verified delivery (derived `event_id` → `payment_id`, sanitized summary
+    only — never the raw body).
+  - `on_chain_events` — **WIRED** (`transitionActions.js`): `submitBurn` writes the `broadcast` row,
+    `recordBurnConfirmation` writes the `confirmation` row (with `block_height`).
+  - `external_status_snapshots` — **WIRED** (`evidenceCollector.js`): every external-observation
+    recorder (`recordApiResponse`, `recordTxHash`, `recordWebhookPayload`, `recordPollResult`) appends a
+    point-in-time snapshot.
+  - `manual_review_queue` — **WIRED**: `moveToManualReview` enqueues (ON CONFLICT on the open-row
+    partial unique index), terminal transitions resolve; dashboard query retargeted onto the table.
+  - `config_snapshots` — **REMOVED** (`migrations/008_sprint_4.sql` + POSTPONED_BACKLOG S4-2):
+    write-dead and superseded by the per-gate `gate_result` + canonical `transition` records.
+  - `relay_wallet_activity` — **REMOVED** (`migrations/008_sprint_4.sql` + POSTPONED_BACKLOG S4-1):
+    write-dead, CineX-owned (E-class); `on_chain_events` covers on-chain tracking.
+  - Tests: `test/unit/dead-tables.test.js` proves the four wired tables receive rows through their
+    real flows and that the removed tables are referenced nowhere under `src/`.
 
-### G-17  Unused pieces: `hasValidExchangeRate`, evidence recorders, `YELLOW_CARD_ENV`, `exchange_rate`  [P2]
+### G-17  Unused pieces: `hasValidExchangeRate`, evidence recorders, `YELLOW_CARD_ENV`, `exchange_rate`  [P2]  — CLOSED (Sprint 4, approved plan §2/§3)
 - **Evidence:** `hasValidExchangeRate` never referenced by any transition (`transitionGuards.js:144`);
   `recordWebhookPayload/recordManualNote/recordPollResult/getEvidence` unused (`evidenceCollector.js`);
   `YELLOW_CARD_ENV` read but unused (`yellowcardAdapter.js:21`); `disbursements.exchange_rate` never written.
 - **Fix direction:** wire the ones the product needs (see G-06, G-10) and remove the rest.
+- **Disposition (Sprint 4):**
+  - `recordWebhookPayload` — **WIRED** and now **awaited** in `handleYellowCardWebhook` (guardrail:
+    any write failure is logged at ERROR with id + evidence type, never silent).
+  - `recordPollResult` — **WIRED** into all three observation actions
+    (`recordReleaseObservation`, `confirmDestinationRelease`, `recordReleaseObservedFailed`).
+  - `recordManualNote` — **WIRED in API contract, no production caller yet** (Sprint 5 operator
+    surface); envelope-compliant and unit-tested (`evidence-recorders.test.js`).
+  - `getEvidence` — **WIRED** as the ordered read path (created_at, id) used by tooling/receipts.
+  - `recordTransitionEvidence` / `recordReconciliationDetection` — new, wired into
+    `executeTransition` (canonical, exactly one per successful transition) and the reconciliation
+    worker (4b), respectively.
+  - `hasValidExchangeRate`, `YELLOW_CARD_ENV`, `disbursements.exchange_rate` — out of 4a scope;
+    tracked unchanged (G-22).
 
 ### G-18  Missing `docs/yellowcard-api-reference.md`  [P2]
 - **Evidence:** `yellowcardAdapter.js:13` references a file that does not exist.
