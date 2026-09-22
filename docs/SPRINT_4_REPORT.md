@@ -1,6 +1,6 @@
 # SPRINT 4 — Settlement Reconstruction (Reconciliation + Receipts) Report
 
-> Task source: `docs/prompts/04_SPRINT_4_SETTLEMENT_RECONSTRUCTION.md`
+> Task source: `docs/prompts/05_SPRINT_4_EVIDENCE.md`
 > Plan: `docs/SPRINT_4_PLAN.md` (reviewed and approved before implementation)
 > Mode: implementation with tests. Standing constraints honored: only A/B/explicitly-authorized C work built,
 > one commit per logical fix, every commit green, no external network, no new runtime deps, no pushes, no CineX edits.
