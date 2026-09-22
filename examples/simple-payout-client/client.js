@@ -1,10 +1,8 @@
-import { fileURLToPath } from 'node:url';
-
-const BASE_URL = (process.env.PAYOUT_API_BASE_URL || 'http://localhost:3001').replace(/\/+$/, '');
+import { pathToFileURL } from 'node:url';
 
 function config() {
   return {
-    baseUrl: BASE_URL,
+    baseUrl: (process.env.PAYOUT_API_BASE_URL || 'http://localhost:3001').replace(/\/+$/, ''),
     token: process.env.BOS_API_TOKEN,
   };
 }
@@ -126,7 +124,7 @@ export async function main() {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === fileURLToPath(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then((code) => {
     process.exitCode = code;
   }).catch((err) => {
