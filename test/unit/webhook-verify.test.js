@@ -188,8 +188,17 @@ test('G-06: webhook verification ordering', async (t) => {
       assert.equal(firstBody.result.new_state, S.YELLOWCARD_PAYOUT_CONFIRMED);
       assert.equal(store.status, S.YELLOWCARD_PAYOUT_CONFIRMED);
 
-      // Evidence chain captures the verified raw payload (+ the transition's API response).
-      assert.equal(db.countMatching(/INSERT INTO disbursement_evidence/), 2, 'webhook payload + API response recorded');
+      // Evidence chain: the awaited verified webhook payload + the transition's API
+      // response + the canonical transition record. The count is 3 (was 2) because
+      // executeTransition now writes exactly one `transition`-type record per
+      // successful transition (Sprint 4, D1) — the increment is that added
+      // record, not a relaxation of this assertion.
+      assert.equal(db.countMatching(/INSERT INTO disbursement_evidence/), 3, 'webhook payload + API response + canonical transition recorded');
+
+      // Journal: one yellow_card_webhook_events row per verified delivery.
+      const firstJournal = db.callsMatching(/INSERT INTO yellow_card_webhook_events/);
+      assert.equal(firstJournal.length, 1, 'first delivery journaled');
+      const firstJournalId = firstJournal[0].params[1];
 
       // Duplicate delivery is acknowledged but does NOT double-advance.
       const dup = await fetch(`${base}/api/bos/webhooks/yellowcard`, { method: 'POST', headers, body: BODY });
@@ -201,6 +210,14 @@ test('G-06: webhook verification ordering', async (t) => {
       assert.equal(db.countMatching(/UPDATE disbursements\s+SET status/), 1, 'status changed once across both deliveries');
       assert.equal(store.status, S.YELLOWCARD_PAYOUT_CONFIRMED, 'duplicate did not advance');
       assert.equal(adapters.yellowcard.calls.lookupSend.length, 2, 'guard + action only on the advancing delivery');
+
+      // Redelivery adds one webhook_payload evidence record (no advance), and a
+      // second journal row whose derived event id is identical to the first (the
+      // payload is byte-identical, so `reference` derives the same event id).
+      assert.equal(db.countMatching(/INSERT INTO disbursement_evidence/), 4, 'redelivery adds only its webhook payload record');
+      const journal = db.callsMatching(/INSERT INTO yellow_card_webhook_events/);
+      assert.equal(journal.length, 2, 'redelivery journaled too');
+      assert.equal(journal[1].params[1], firstJournalId, 'redelivery reuses the derived event id');
     } finally { await close(); }
   });
 

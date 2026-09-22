@@ -250,6 +250,26 @@ async function assertFullLifecycle({ db, adapters, row, emitReleaseEvidence }) {
   assert.ok(db.countMatching(/INSERT INTO disbursement_evidence/) >= 4, 'evidence rows recorded');
   assert.ok(db.findCall(/INSERT INTO external_refs/), 'external refs written');
 
+  // ── Sprint 4 evidence trail (plan §9): 11 hops → 11 canonical records. ───
+  const TRANSITION_HOPS = 11;
+  const transition = db.callsMatching(/INSERT INTO disbursement_evidence/)
+    .filter((c) => c.params[2] === 'transition');
+  assert.equal(transition.length, TRANSITION_HOPS, 'one canonical transition record per successful hop');
+  for (const ins of transition) {
+    const env = JSON.parse(ins.params[3]);
+    assert.equal(env.event_type, 'transition', 'record typed transition');
+    assert.deepEqual(env.verification, { ok: true, method: 'guard' }, 'guard-verified canonical record');
+    assert.ok(env.status?.from && env.status?.to, 'from/to states on the record');
+    assert.match(env.payload_hash, /^sha256:/, 'payload hashed, not stored');
+  }
+
+  // Hash-not-payload + PII-clean across the entire evidence chain.
+  const allEvidenceRaw = db.callsMatching(/INSERT INTO disbursement_evidence/)
+    .map((c) => c.params[3]).join('\n');
+  for (const secret of ['0123456789', 'campaign-1', VALID_CREATOR, VALID_BTC]) {
+    assert.ok(!allEvidenceRaw.includes(secret), `evidence trail leaked: ${secret}`);
+  }
+
   return settled;
 }
 
@@ -296,6 +316,19 @@ test('E2E: failed preflight stops at MANUAL_REVIEW and never burns', async () =>
     const view = await getDisbursement(created.id);
     assert.equal(view.status, S.MANUAL_REVIEW, 'row is parked in manual_review');
     assert.equal(adapters.stacks.calls.burnUsdcx.length, 0, 'the burn was never submitted');
+
+    // Sprint 4: canonical records for the two successful hops only (create →
+    // preflight_check and the escalation → manual_review); the rejected
+    // → burn_submitted attempt leaves none, and the escalation enqueues an
+    // open manual_review_queue row.
+    const transitions = db.callsMatching(/INSERT INTO disbursement_evidence/)
+      .filter((c) => c.params[2] === 'transition');
+    assert.equal(transitions.length, 2, 'one canonical record per successful hop');
+    for (const ins of transitions) {
+      const env = JSON.parse(ins.params[3]);
+      assert.notEqual(env.status?.to, S.BURN_SUBMITTED, 'no record for the rejected burn hop');
+    }
+    assert.equal(db.countMatching(/INSERT INTO manual_review_queue/), 1, 'failed preflight enqueues manual review');
   } finally {
     for (const k of ENV_KEYS) {
       if (snapshot[k] !== undefined) process.env[k] = snapshot[k];
