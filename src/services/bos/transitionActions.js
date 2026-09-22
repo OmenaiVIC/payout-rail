@@ -6,7 +6,7 @@
 
 import { DisbursementState, ReleaseStatus } from './types.js';
 import { USDCX_CONTRACT, PAYOUT_API_BASE_URL } from '../../config/chainConfig.js';
-import { recordTxHash, recordApiResponse, recordGateResult, recordPollResult } from './evidenceCollector.js';
+import { recordTxHash, recordApiResponse, recordGateResult, recordPollResult, recordStatusSnapshot } from './evidenceCollector.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action: runPreflightCheck
@@ -79,6 +79,23 @@ export async function submitBurn(disbursement, ctx) {
 
   await recordTxHash({ db, disbursementId: disbursement.id, chain: 'stacks', txHash: burnTxId, details: { action: 'burn', amount: disbursement.amount_usdcx } });
 
+  // ── On-chain broadcast event ──────────────────────────────────────
+  await db.run(
+    `INSERT INTO on_chain_events (disbursement_id, chain, event_type, tx_hash, status, raw_event)
+     VALUES ($1, 'stacks', 'broadcast', $2, 'submitted', $3)`,
+    [disbursement.id, burnTxId, JSON.stringify({ action: 'burn', amount: disbursement.amount_usdcx, submitted_at: new Date().toISOString() })]
+  );
+
+  await recordStatusSnapshot({
+    db,
+    disbursementId: disbursement.id,
+    source: 'chain:stacks',
+    status: 'submitted',
+    responseTimeMs: null,
+    errorMessage: null,
+    payloadHash: `sha256:${burnTxId}`,
+  });
+
   log.info({ id: disbursement.id, burnTxId }, 'Burn tx submitted');
   return { external_tx_id: burnTxId };
 }
@@ -96,6 +113,23 @@ export async function recordBurnConfirmation(disbursement, ctx) {
   const meta = { confirmed_at: new Date().toISOString(), block_height: details.burn_block_height };
 
   await upsertExternalRef(db, disbursement.id, 'stacks', 'tx_id', disbursement.external_tx_id, meta);
+
+  // ── On-chain confirmation event ───────────────────────────────────
+  await db.run(
+    `INSERT INTO on_chain_events (disbursement_id, chain, event_type, tx_hash, status, block_height, raw_event)
+     VALUES ($1, 'stacks', 'confirmation', $2, 'confirmed', $3, $4)`,
+    [disbursement.id, disbursement.external_tx_id, details.burn_block_height ?? null, JSON.stringify({ confirmed_at: new Date().toISOString() })]
+  );
+
+  await recordStatusSnapshot({
+    db,
+    disbursementId: disbursement.id,
+    source: 'chain:stacks',
+    status: 'confirmed',
+    responseTimeMs: null,
+    errorMessage: null,
+    payloadHash: `sha256:${disbursement.external_tx_id}`,
+  });
 
   log.info({ id: disbursement.id, block_height: details.burn_block_height }, 'Burn confirmed');
   return { burn_block_height: details.burn_block_height };
