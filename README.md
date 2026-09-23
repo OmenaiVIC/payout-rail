@@ -52,7 +52,7 @@ The gap is not another payment primitive. The gap is the orchestration layer tha
 
 > Payout Rail is **prototype** software. The pipeline, the 15-state machine, the
 > evidence chain, the v1 public API, and the Nigeria (NGN) corridor are
-> implemented and covered by 183 passing automated tests, but no external adapter
+> implemented and covered by 188 passing automated tests, but no external adapter
 > has been verified against a live or sandbox provider (no provider credentials
 > exist in this environment — G-20), and no external application has used the
 > layer. **Do not use Payout Rail to move real funds or handle real beneficiary
@@ -77,7 +77,7 @@ Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKE
 | xReserve adapter (USDC bridge, release observation)                                                                                                  | MODEL CORRECTED (G-08) / UNVERIFIED EXTERNAL              | observation surface is a fail-closed stub; no credentials                                                                                                                                     |
 | Yellow Card adapter (Sends API, `YcHmacV1` auth)                                                                                                     | IMPLEMENTED + TESTED (wire-level vs documented reference) | `yellowcard-api-reference.md`; 28 wire-contract tests pass; **live/sandbox UNVERIFIED (no credentials — G-20)**                                                                               |
 | Provider live/sandbox verification (any adapter)                                                                                                     | UNVERIFIED                                                | no credentials exist in this environment                                                                                                                                                      |
-| Adoption by an external Stacks application                                                                                                           | PLANNED                                                   | Sprint 7.5 (external integrator example)                                                                                                                                                      |
+| Adoption by an external Stacks application                                                                                                           | PLANNED                                                   | examples/external-integrator/ (reference template; no external adopter yet)                                                                                                                   |
 | Mainnet readiness                                                                                                                                    | PLANNED / OUT OF SCOPE                                    | strategy: mainnet out of scope for the grant                                                                                                                                                  |
 | Known open P0 gaps (G-01 fail-open preflight; G-02 schema/code mismatch)                                                                             | KNOWN GAP (recorded, not claimed fixed)                   | `GAP_REGISTER.md`                                                                                                                                                                             |
 
@@ -97,7 +97,7 @@ Grounding: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §"Not in the system".
 
 ```bash
 npm ci
-npm test        # 184 tests, 183 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
+npm test        # 189 tests, 188 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
 npm run demo:payout:ngn                # demo mode — loopback, fully offline, in-process mocks only
 npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without credentials rather than running
 ```
@@ -107,7 +107,7 @@ npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without crede
 
 ## 8. Test status
 
-184 tests, 183 pass, 1 skip (the Postgres-gated integration case), verified unchanged in Sprint 6. The suite runs offline against an in-repo `FakeDb` with mock adapters — zero infrastructure.
+189 tests, 188 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters — zero infrastructure.
 
 ## 9. Environment reference
 
