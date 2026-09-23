@@ -8,9 +8,8 @@
 
 Payout Rail **never holds the trust-critical material** of the integrator:
 
-- **No private keys.** No key material is generated, stored, or used by the
-  pipeline. On-chain actions (burn, attestation) are prepared as requests; the
-  integrator holds the keys and executes them on Stacks.
+- **Signing key required, never held.** The pipeline reads `PAYOUT_TX_SIGNING_KEY` from the integrator's deployment environment to sign and broadcast the USDCx burn transaction. The layer does not generate, store, or transmit the key. Whoever operates the deployment holds the key — the integrator in a self-hosted setup, or the hosting operator in a future hosted setup. There is no scenario in which a third party holds the key on the integrator's behalf. The current implementation uses `PostConditionMode.Allow`, which is overly permissive; Milestone 1 of the Stacks Endowment grant corrects this to `PostConditionMode.Deny` with explicit post-conditions bounding the burn to exactly the expected amount and recipient, verified on testnet.
+
 - **No funds.** No balance is held, no wallet is controlled, no custody paths
   exist. The USD/NGN conversion is a configured rate, not a ledger position.
 - **No directly-identifying PII.** Evidence records reference beneficiary
@@ -53,7 +52,7 @@ tested to do so:
   `preflight_check → burn_submitted` guarded only by `disbursementExists`
   (`GAP_REGISTER.md` G-01 evidence: `transitionActions.js:41-52`,
   `disbursementService.js:174-178`, `stateMachine.js:24-27`). The fail-closed
-  escalation *route* exists and is verified (`stateMachine.js:277-288` guards
+  escalation _route_ exists and is verified (`stateMachine.js:277-288` guards
   `MANUAL_REVIEW_REQUIRED`, and the `preflight` smoke gate reports `ok:false` on
   breaker/gate/2PA failure — `preflight.js:22-48`), but **nothing acts on that
   result today**, so a failed gate does not stop the burn. This is a recorded,
@@ -73,7 +72,7 @@ The audit record is itself the control surface:
   (per G-01) they are not yet enforced.
 - **Idempotency against double-spend.** Create is keyed by a deterministic hash
   over `[source_reference, source_application, amount_usdcx,
-  recipient_bank_account]` with a DB `UNIQUE(idempotency_key)`
+recipient_bank_account]` with a DB `UNIQUE(idempotency_key)`
   (`disbursementService.js:53-63`; `migrations/006`). Duplicate submissions
   return the existing record and cannot mint a second payout for the same
   request.

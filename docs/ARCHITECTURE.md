@@ -83,32 +83,32 @@ self-loop precisely because it is not in `TERMINAL_STATES`, see §2.3).
 
 24 explicit transitions. Table rendered from `stateMachine.js` (from → to | trigger | guard | action):
 
-| From | To | Trigger | Guard | Action |
-|---|---|---|---|---|
-| `disbursement_initiated` | `preflight_check` | record created | `preflightRequested` | `runPreflightCheck` |
-| `preflight_check` | `burn_submitted` | preflight passed | `preflightPassed` | `submitBurn` |
-| `preflight_check` | `manual_review` | preflight couldn't complete | `disbursementExists` | `moveToManualReview` |
-| `preflight_check` | `failed` | preflight terminal failure | `disbursementExists` | `markFailed` |
-| `burn_submitted` | `burn_confirmed` | burn confirmed on-chain | `isBurnConfirmed` | `recordBurnConfirmation` |
-| `burn_submitted` | `failed` | burn failed (retry budget) | `withinRetryBudget` | `markFailed` |
-| `burn_confirmed` | `attestation_requested` | burn confirmed — call attestation | `burnConfirmedForAttestation` | `requestAttestation` |
-| `burn_confirmed` | `failed` | attestation request failed | `withinRetryBudget` | `markFailed` |
-| `attestation_requested` | `attestation_confirmed` | attestation accepted | `isAttestationConfirmed` | `confirmAttestation` |
-| `attestation_requested` | `failed` | attestation failed | `withinRetryBudget` | `markFailed` |
-| `attestation_confirmed` | `destination_release_unobserved` | attestation placed — begin observing | `attestationConfirmedForRelease` | `beginReleaseObservation` |
-| `attestation_confirmed` | `failed` | observation setup failed | `withinRetryBudget` | `markFailed` |
-| `destination_release_unobserved` | `destination_release_observed` | release observed | `isReleaseObserved` | `recordReleaseObservation` |
-| `destination_release_unobserved` | `failed` | release observed failed | `isReleaseObservedFailed` | `recordReleaseObservedFailed` |
-| `destination_release_observed` | `destination_release_confirmed` | observed → confirmed | `isReleaseObservedConfirmed` | `confirmDestinationRelease` |
-| `destination_release_observed` | `failed` | observed failed | `isReleaseObservedFailed` | `recordReleaseObservedFailed` |
-| `destination_release_confirmed` | `yellowcard_payout_submitted` | release confirmed — submit Yc payout | `destinationReleasedForPayout` | `submitYellowCardPayout` |
-| `destination_release_confirmed` | `failed` | payout submission failed | `withinRetryBudget` | `markFailed` |
-| `yellowcard_payout_submitted` | `yellowcard_payout_confirmed` | payout confirmed (Yc status/webhook) | `isPayoutConfirmed` | `confirmYellowCardPayout` |
-| `yellowcard_payout_submitted` | `failed` | payout failed | `withinRetryBudget` | `markFailed` |
-| `yellowcard_payout_confirmed` | `settled` | payout confirmed → settled | `disbursementExists` | `markSettled` |
-| `manual_review` | `failed` | operator decided | `disbursementExists` | `markFailed` |
-| `manual_review` | `settled` | operator decided | `disbursementExists` | `markSettled` |
-| `manual_review` | `cancelled` | operator cancelled | `disbursementExists` | `markCancelled` |
+| From                             | To                               | Trigger                              | Guard                            | Action                        |
+| -------------------------------- | -------------------------------- | ------------------------------------ | -------------------------------- | ----------------------------- |
+| `disbursement_initiated`         | `preflight_check`                | record created                       | `preflightRequested`             | `runPreflightCheck`           |
+| `preflight_check`                | `burn_submitted`                 | preflight passed                     | `preflightPassed`                | `submitBurn`                  |
+| `preflight_check`                | `manual_review`                  | preflight couldn't complete          | `disbursementExists`             | `moveToManualReview`          |
+| `preflight_check`                | `failed`                         | preflight terminal failure           | `disbursementExists`             | `markFailed`                  |
+| `burn_submitted`                 | `burn_confirmed`                 | burn confirmed on-chain              | `isBurnConfirmed`                | `recordBurnConfirmation`      |
+| `burn_submitted`                 | `failed`                         | burn failed (retry budget)           | `withinRetryBudget`              | `markFailed`                  |
+| `burn_confirmed`                 | `attestation_requested`          | burn confirmed — call attestation    | `burnConfirmedForAttestation`    | `requestAttestation`          |
+| `burn_confirmed`                 | `failed`                         | attestation request failed           | `withinRetryBudget`              | `markFailed`                  |
+| `attestation_requested`          | `attestation_confirmed`          | attestation accepted                 | `isAttestationConfirmed`         | `confirmAttestation`          |
+| `attestation_requested`          | `failed`                         | attestation failed                   | `withinRetryBudget`              | `markFailed`                  |
+| `attestation_confirmed`          | `destination_release_unobserved` | attestation placed — begin observing | `attestationConfirmedForRelease` | `beginReleaseObservation`     |
+| `attestation_confirmed`          | `failed`                         | observation setup failed             | `withinRetryBudget`              | `markFailed`                  |
+| `destination_release_unobserved` | `destination_release_observed`   | release observed                     | `isReleaseObserved`              | `recordReleaseObservation`    |
+| `destination_release_unobserved` | `failed`                         | release observed failed              | `isReleaseObservedFailed`        | `recordReleaseObservedFailed` |
+| `destination_release_observed`   | `destination_release_confirmed`  | observed → confirmed                 | `isReleaseObservedConfirmed`     | `confirmDestinationRelease`   |
+| `destination_release_observed`   | `failed`                         | observed failed                      | `isReleaseObservedFailed`        | `recordReleaseObservedFailed` |
+| `destination_release_confirmed`  | `yellowcard_payout_submitted`    | release confirmed — submit Yc payout | `destinationReleasedForPayout`   | `submitYellowCardPayout`      |
+| `destination_release_confirmed`  | `failed`                         | payout submission failed             | `withinRetryBudget`              | `markFailed`                  |
+| `yellowcard_payout_submitted`    | `yellowcard_payout_confirmed`    | payout confirmed (Yc status/webhook) | `isPayoutConfirmed`              | `confirmYellowCardPayout`     |
+| `yellowcard_payout_submitted`    | `failed`                         | payout failed                        | `withinRetryBudget`              | `markFailed`                  |
+| `yellowcard_payout_confirmed`    | `settled`                        | payout confirmed → settled           | `disbursementExists`             | `markSettled`                 |
+| `manual_review`                  | `failed`                         | operator decided                     | `disbursementExists`             | `markFailed`                  |
+| `manual_review`                  | `settled`                        | operator decided                     | `disbursementExists`             | `markSettled`                 |
+| `manual_review`                  | `cancelled`                      | operator cancelled                   | `disbursementExists`             | `markCancelled`               |
 
 ### 2.3 Generic transitions (F2) — `stateMachine.js:193-209`
 
@@ -118,6 +118,7 @@ already have them**: `→failed` (guard `disbursementExists`, action `markFailed
 (guard `disbursementExists`, action `moveToManualReview`).
 
 Accounting (code-verified):
+
 - `→failed` added for **2** states missing it (`disbursement_initiated`,
   `yellowcard_payout_confirmed`); the other 10 already had explicit `→failed`.
 - `→cancelled` added for **11** states (all except `manual_review`, which has it explicitly).
@@ -167,12 +168,12 @@ Total generic = 2 + 11 + 11 = **24**. Explicit (24) + generic (24) = **48**.
 - **`reconciliation_detection`** — source `bos.reconciliation`, recorded when the
   reconciliation worker finds a mismatch (§4).
 - **Envelope** — `{ v:1, event_type, source, external_ref, observed_at, status,
-  payload_hash, verification, details }`; `payload_hash` is `sha256:` over a stable
+payload_hash, verification, details }`; `payload_hash` is `sha256:` over a stable
   canonical form; `SENSITIVE_KEYS` redaction caps large fields.
 - **Settlement receipts** — `GET /api/v1/disbursements/:id/receipt` assembles the
   evidence trail into a receipt (`final_status`, ngn amount).
 - **Event types** — `api_response, tx_hash, webhook_payload, manual_note, gate_result,
-  poll_result, transition, reconciliation_detection` (8 types; the "6 recorders" are the
+poll_result, transition, reconciliation_detection` (8 types; the "6 recorders" are the
   evidence-type recorders; `transition` and `reconciliation_detection` are canonical
   additions).
 
@@ -209,13 +210,13 @@ in `docs/SECURITY.md` (Sprint 7).
 
 **What lives inside vs outside the layer (F7 honesty per adapter):**
 
-| Adapter | Outside (provider claims) | Inside (this layer, tested) |
-|---|---|---|
-| **Stacks** | Burn wire format, attestation service contract | `observeBurn` → records `tx_hash`; burn + attestation are **mock-only** (GAP-09 says UNVERIFIED burn) |
-| **xReserve** | USDC bridge release semantics | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed |
-| **Yellow Card** | Sends API submit/lookup/payout-status/webhook | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20) |
+| Adapter         | Outside (provider claims)                      | Inside (this layer, tested)                                                                                                                             |
+| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stacks**      | Burn wire format, attestation service contract | `observeBurn` → records `tx_hash`; burn + attestation are **mock-only** (GAP-09 says UNVERIFIED burn)                                                   |
+| **xReserve**    | USDC bridge release semantics                  | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed                                                                        |
+| **Yellow Card** | Sends API submit/lookup/payout-status/webhook  | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20) |
 
-The layer takes no custody, holds no keys, and never guesses an external outcome.
+The layer takes no custody, does not hold keys (it reads a signing key from the integrator's environment), and never guesses an external outcome.
 
 ## 6. Public API surface (summary)
 
@@ -242,8 +243,9 @@ whitelist, circuit breaker, two-person approval — §see `payoutGates.js:261-26
 NGN corridor (rate pair `USDCx/NGN`, seed `DEFAULT_USDCX_NGN_RATE`, `computeAmountNgnExpected`).
 
 **Not in the system (explicitly):**
-- **Custody** — this layer holds no funds and no private keys.
-- **Key management** — the integrator keeps secrets (API tokens, HMAC keys).
+
+- **Custody** — this layer holds no funds. It does not custody signing keys, but it requires one: the `StacksAdapter` reads `PAYOUT_TX_SIGNING_KEY` from the integrator's deployment environment to sign and broadcast the USDCx burn. Whoever operates the deployment holds the key.
+- **Key management** — the integrator keeps secrets (API tokens, HMAC keys, and the `PAYOUT_TX_SIGNING_KEY` for the Stacks burn). The layer reads them from the deployment environment and never transmits them to a third party. Milestone 1 of the Stacks Endowment grant also tightens the burn's `PostConditionMode` from `Allow` to `Deny` to bound the transaction to the exact expected amount and recipient.
 - **Ledger ownership** — disbursement records live in this Postgres schema; this is not a
   ledger or a double-entry accounting system.
 - **A scheduling SLA** — worker cadences are best-effort crate timers, not a delivery SLA.
