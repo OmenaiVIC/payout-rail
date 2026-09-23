@@ -1,5 +1,11 @@
 # Payout Rail — Product Baseline
 
+> **ARCHIVED — historical snapshot (Sprint 7).**
+> This is a Sprint 0 baseline snapshot of the repository. Rows below that describe
+> pre-Sprint-3 auth and pre-Sprint-0.5/3 webhook handling **contradict current code**
+> and must not be treated as current. It is **superseded by** `docs/ARCHITECTURE.md`
+> and `docs/INTEGRATION.md`; links to it are preserved for provenance only.
+
 > Generated: 2026-09-21 · Sprint 0 (Prompt 0) · Mode: discovery, classification, documentation.
 > This document describes **what the repository actually is and does**, with `file:line` evidence.
 > It intentionally does not describe intended behavior as implemented behavior.

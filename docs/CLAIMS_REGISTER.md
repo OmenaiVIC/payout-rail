@@ -1,6 +1,6 @@
 # Payout Rail — Claims Register
 
-> Generated: 2026-09-21 · Sprint 0 (Prompt 0) · Discovery only.
+> Generated: 2026-09-21 · Sprint 0 (Prompt 0) · Discovery only · **maintained through Sprint 7 (2026-09-23).**
 > Every significant product/technical claim found in `README.md`, `.env.example`,
 > `docs/*.md`, migration headers, and module headers is listed with evidence and a status.
 >
@@ -17,12 +17,12 @@
 | Claim | Location | Evidence | Status |
 |---|---|---|---|
 | "burn → xReserve attestation → destination release → Yellow Card payout → NGN" pipeline | `README.md:6` | State machine + adapters encode this lifecycle | IMPLEMENTED (release model corrected in Sprint 2 — observed, not simulated; see `docs/SPRINT_2_REPORT.md` §3) |
-| "14-state state machine (`PREFLIGHT_CHECK` → `settled`)" | `README.md:7` | `types.js:18-33` defines 14 states | IMPLEMENTED |
+| State machine (`PREFLIGHT_CHECK` → `settled`) | `README.md` §3 | `types.js:22-38` defines 15 states; 48 transitions registered (24 explicit + 24 generic) | IMPLEMENTED (reconciled Sprint 7 — 15 states / 48 transitions) |
 | "workers advancing every non-terminal disbursement one step per tick" | `README.md:8` | `pipelineWorker.js:100-152` | IMPLEMENTED |
-| `BOS_PIPELINE_BATCH_SIZE` default **50** | `README.md:48`, `.env.example:27` | Code default is **25** (`pipelineWorker.js:19`) | FALSE (doc drift; code default 25) |
+| `BOS_PIPELINE_BATCH_SIZE` default **50** | `README.md:48`, `.env.example:27` (both Sprint 0 era) | Code default is **25** (`pipelineWorker.js:19`) | RESOLVED (Sprint 7 — `README.md` §9 env reference and `.env.example:27` now state `25`) |
 | `BOS_POLL_INTERVAL_MS` default **30000** | `README.md:49`, `.env.example:28` | Env var **removed** in Sprint 1.5 (G-14) with `fallbackPoller.js` (dead module, zero importers) | RESOLVED (doc drift source deleted; see `docs/SPRINT_1_5_REPORT.md` D3) |
 | `BOS_MAX_POLL_ATTEMPTS` default **10** | `README.md:50`, `.env.example:29` | Env var **removed** in Sprint 1.5 (G-14) with `fallbackPoller.js` (dead module, zero importers) | RESOLVED (doc drift source deleted; see `docs/SPRINT_1_5_REPORT.md` D3) |
-| "14 states, 28+ transitions" | `README.md:63` | 45 registered transitions (23 explicit + 22 generic, `stateMachine.js`) | PARTIAL (28+ is an undercount; count is odd to audit) |
+| "14 states, 28+ transitions" | `README.md:63` (Sprint 0 era) | 48 registered transitions (24 explicit + 24 generic, `stateMachine.js:40-209`); runtime check `getAllTransitions().length === 48` | RESOLVED (Sprint 7 — README rewritten; canonical 15 states / 48 transitions per `types.js:22-38` + `stateMachine.js`) |
 | "manual_review_queue as the human-in-the-loop escape hatch" | `README.md:74-75` | `manual_review_queue` table exists but is **never written**; `manual_review` is a status only | PARTIAL / PLANNED |
 | "circuit breaker guarding the payout leg" | `README.md:75` | Only `CircuitBreaker.check()` is called; `recordFailure/recordSuccess/trip/reset` never called (`preflight.js:12`, grep) | PARTIAL (breaker cannot trip from real outcomes — no failures are ever recorded) |
 | Worker table incl. `stuckStateReaper` 60s, `reconciliationWorker` 5 min, `pipelineWorker` 30s | `README.md:79-84` | `index.js:78-81`; code intervals match | IMPLEMENTED |
@@ -33,7 +33,7 @@
 
 | Claim | Location | Evidence | Status |
 |---|---|---|---|
-| "Preserved verbatim: BOS logic files … `fallbackPoller.js`, … `webhookVerifier.js`, `auditTimeline.js`" | `EXTRACTION_REPORT.md:18-23` | Files present, but each uses `module.exports` in an ESM package and is **not imported** | VERBATIM-PRESERVED but DEAD (import probe fails) |
+| "Preserved verbatim: BOS logic files … `fallbackPoller.js`, … `webhookVerifier.js`, `auditTimeline.js`" | `EXTRACTION_REPORT.md:18-23` | `fallbackPoller.js` **removed** in Sprint 1.5 (G-14); `webhookVerifier.js` is **wired live** in Sprint 0.5/3 (`webhooks.js:15`, `yellowcardAdapter.js:22`); `auditTimeline.js` is ESM-converted (imports cleanly; still not imported by the app — test-only) | VERBATIM-PRESERVED at extraction; disposition changed since (per import graph, Sprint 7 re-audit) |
 | "Payout-rail's `runMigrations` maintains a `schema_migrations` table and runs only un-applied files" | `EXTRACTION_REPORT.md:56-59` | `database.js:85-114` | IMPLEMENTED |
 | "exchange_rates seed runs exactly once" | `EXTRACTION_REPORT.md:57` (C-06) | Runner + seed in `disbursementService.init` (`disbursementService.js:25-42`) | IMPLEMENTED |
 | C-05 resolved: "the three `require('crypto')` calls were replaced with a single module-level `import crypto from 'node:crypto'`" | `EXTRACTION_REPORT.md:90-93` | `webhookVerifier.js:8`, `yellowcardAdapter.js:16` | IMPLEMENTED |
@@ -43,8 +43,8 @@
 
 | Claim | Location | Evidence | Status |
 |---|---|---|---|
-| `stateMachine.js`: "13 states, 24 transitions" | `stateMachine.js:2` | 14 states, 45 registered transitions | FALSE (header out of date) |
-| `types.js`: "13 disbursement states" | `types.js:3` | 14 states defined | FALSE (header out of date) |
+| `stateMachine.js`: "13 states, 24 transitions" | `stateMachine.js:1-3` | Header now reads "15 states, observation-based destination release"; 48 registered transitions (24 explicit + 24 generic) | RESOLVED (Sprint 7 — header updated in Sprint; JSdoc and registration reconciled) |
+| `types.js`: "13 disbursement states" | `types.js:1-2` | Header now reads "15 disbursement states"; `types.js:22-38` defines 15 states | RESOLVED (Sprint 7 — header reconciled to code) |
 | `disbursementService.js:4`: "All operations are idempotent under duplicate worker execution" | `disbursementService.js:4` | Idempotency keys: `disbursement:{source_ref}:{amt}:{Date.now()}` (`:81`) — timestamp makes retries non-deterministic (C-04); burn/release/payout action keys are stable per disbursement | PARTIAL / FALSE for create (C-04) |
 | `transitionActions.js:4`: "All actions are idempotent" | `transitionActions.js:4` | `submitBurn` uses `burn:{disbursement.id}`; `releaseDestination` no-op; `submitSend` uses `payout:{disbursement.id}` | IMPLEMENTED for the executed actions (create still C-04) |
 | `StacksAdapter.js`: "burn … (SIP-010 burn)" | `StacksAdapter.js:217-218` | Broadcasts `burn` on `USDCX_CONTRACT` (`usdcx` token) | IMPLEMENTED but target entrypoint UNVERIFIED vs current docs |
@@ -86,8 +86,8 @@
 ## 6. Claims register summary
 
 - **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes. Sprint 4 closed G-16/G-17: **all six recorders live** (webhook, poll, manual-note, api, tx-hash, gate) plus the canonical `transition` record per successful transition and the `reconciliation_detection` type (4b writer); the four write-dead tables are wired and the two dead tables dropped (see `docs/PRODUCT_BASELINE.md`, `docs/GAP_REGISTER.md`).
-- **FALSE / DOC-DRIFT:** README env defaults (batch size, poll interval, poll attempts); "gated by CRON_SECRET" for all monitoring; transition counts in headers; `external_tx_id` write claim; creation works claim; signature verification active claim.
-- **DEAD:** `fallbackPoller`, `webhookVerifier`, `auditTimeline` (ESM/CommonJS break + not imported).
+- **FALSE / DOC-DRIFT:** poll env vars (removed Sprint 1.5); "gated by CRON_SECRET" for all monitoring; transition counts in headers (reconciled Sprint 7); `external_tx_id` write claim; creation works claim; signature verification active claim. (`BOS_PIPELINE_BATCH_SIZE` doc drift was corrected Sprint 7 — README §9 env reference and `.env.example` now state the code default `25`.)
+- **DEAD (Sprint 7 re-audit):** `fallbackPoller` — **removed** in Sprint 1.5 (G-14), no longer in the tree. `auditTimeline` — ESM-converted in Sprint 1.5, imports cleanly, but is still **not imported by the app** (referenced only by its own unit test); treated as leftover pending wiring. `webhookVerifier` — **no longer dead**: wired live at `webhooks.js:15` and `yellowcardAdapter.js:22`.
 - **SIMULATED:** xReserve attestation (Hiro proxy); xReserve destination-release **observation surface**
   (records exactly what it is told; the fabricated no-op was removed in Sprint 2); mock adapters.
 - **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint.

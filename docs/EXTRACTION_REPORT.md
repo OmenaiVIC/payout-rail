@@ -1,5 +1,11 @@
 # Payout Rail — Extraction Report
 
+> **ARCHIVED — historical record (Sprint 7).**
+> This document records the Sprint 0 extraction of the BOS subsystem from CineX.
+> It is **superseded by** `docs/ARCHITECTURE.md` and `docs/INTEGRATION.md` for current
+> system description and is not a reference to current behavior. Links to it are
+> preserved for provenance only (see `docs/ATTRIBUTION.md`).
+
 Extraction of the BOS (Bridge Orchestration Service) payout subsystem from the CineX
 backend into the standalone `payout-rail` project.
 

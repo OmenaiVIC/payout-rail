@@ -10,7 +10,7 @@ For the CineX-side log entry, see `CineX/docs/POSTPONED_BACKLOG.md`.
 
 ## C-01 — Burn confirmation re-reads `external_tx_id` before it is written
 
-- **Status:** POSTPONED — fix in Sprint 1.
+- **Status:** POSTPONED — fix in Sprint 1. **Current disposition (Sprint 7): still OPEN** as P1 `G-05` in `docs/GAP_REGISTER.md` (no `RESOLVED` marker). The fix direction (persist `external_tx_id` on submit, or read from `external_refs` by key) has not been implemented; a just-submitted burn still cannot be confirmed by `isBurnConfirmed` and is routed to manual review by the stuck-state reaper.
 - **Problem (plain English):** When the pipeline creates the burn transaction on
   Stacks (`submitBurn`), it stores the disbursement with its `external_tx_id` still
   empty. The confirmation step (`isBurnConfirmed`) looks up the disbursement by that
@@ -31,8 +31,12 @@ For the CineX-side log entry, see `CineX/docs/POSTPONED_BACKLOG.md`.
 
 ## C-04 — Weak idempotency key can allow a duplicate payout
 
-- **Status:** POSTPONED — **MUST-FIX before Sprint 3 (Yellow Card go-live)**.
-  This is a **double-payout risk**.
+- **Status:** ~~POSTPONED — **MUST-FIX before Sprint 3 (Yellow Card go-live)**~~ → **FULFILLED (Sprint 7).**
+  This was a **double-payout risk**; the fix shipped in Sprint 6 (deterministic
+  idempotency, claim F4 — `disbursementService.js:53-63` derives the idempotency key
+  from stable inputs and `migrations/006` adds the `UNIQUE(idempotency_key)`
+  constraint; the public API and pipeline retry on the same key so replayed ticks
+  collide and are rejected). The row is retained as the record of the risk.
 - **Problem (plain English):** The idempotency key that guards against re-processing a
   disbursement is built from `source_reference`, `amount_usdcx`, and the wall-clock
   **timestamp at creation time**. Because two otherwise identical operations created in
