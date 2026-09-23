@@ -78,7 +78,7 @@ The project is designed to survive any single contributor's absence: each milest
 
 \### Ecosystem fit
 
-This application is timely because the Stacks ecosystem is currently funding payment and escrow primitives — sBTC Escrow, Stackstream, Nayori, AgentPay, and others — but not the last-mile layer that connects them to local payout rails. Payout Rail is complementary to those projects, not competitive. It fills a gap they collectively leave open: how value actually reaches a real person's bank account in a local currency. It aligns with the ecosystem's current direction toward real-world Bitcoin utility.
+This application is timely because the Stacks ecosystem is currently funding payment and escrow primitives — sBTC Escrow, Stackstream, Nayori, AgentPay, Hermes Bridge and others — but not the last-mile layer that connects them to local payout rails. Payout Rail is complementary to those projects, not competitive. It fills a gap they collectively leave open: how value actually reaches a real person's bank account in a local currency. It aligns with the ecosystem's current direction toward real-world Bitcoin utility.
 
 \---
 
