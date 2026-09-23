@@ -1,0 +1,14 @@
+{
+  "name": "external-integrator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reference implementation: an external Stacks marketplace paying out sellers through Payout Rail. Zero runtime dependencies.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node client.js"
+  },
+  "dependencies": {}
+}
