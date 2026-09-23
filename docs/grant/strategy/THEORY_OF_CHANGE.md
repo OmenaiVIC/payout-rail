@@ -1,42 +1,22 @@
 \# Theory of Change — Payout Rail
 
-
-
 > Status: Strategy document. Not a sprint deliverable.
-
-
 
 \## The causal chain
 
-
-
 \### If we build an open-source orchestration layer that connects Stacks settlement to local fiat payout rails,
-
-
 
 then Stacks applications that need to pay users in emerging markets will have a reusable, tested, auditable way to deliver local currency without rebuilding the operational complexity from scratch,
 
-
-
 because the layer replaces months of per-application engineering with a documented integration surface and an evidence trail,
-
-
 
 which means more Stacks applications will offer real payouts to real users in local currencies,
 
-
-
 which grows the ecosystem of users for whom Stacks applications solve a complete problem — not just an on-chain problem, but the whole problem of receiving value in the form they actually need,
-
-
 
 which strengthens the case that Stacks is not just a settlement layer but an application platform for global value movement.
 
-
-
 \## The chain, structured
-
-
 
 | Level | Statement |
 
@@ -50,15 +30,9 @@ which strengthens the case that Stacks is not just a settlement layer but an app
 
 | \*\*Impact\*\* | Stacks becomes the settlement platform of choice for applications serving emerging-market users, because the last mile is solved |
 
-
-
 \## What we assume to be true
 
-
-
 The theory of change rests on five assumptions. Each must be stated honestly because the grant funds the validation of these assumptions, not the certainty of them.
-
-
 
 1\. \*\*Stacks applications actually want to pay users in local fiat.\*\* If they only want on-chain settlement, the layer is unnecessary.
 
@@ -70,101 +44,61 @@ The theory of change rests on five assumptions. Each must be stated honestly bec
 
 5\. \*\*The Stacks ecosystem values this capability enough to support it.\*\* If the ecosystem sees it as peripheral, adoption will not follow.
 
-
-
 \## What the grant funds
-
-
 
 The grant funds the transition from \*\*built but unvalidated\*\* to \*\*validated and reusable\*\*.
 
+Specifically, the grant funds **three milestones**, structured as **20% / 30% / 50%** tranches against a $10,000 request:
 
+- Milestone 1: 20% = $2,000
+- Milestone 2: 30% = $3,000
+- Milestone 3: 50% = $5,000
 
-Specifically, the grant funds \*\*two milestones\*\*, structured as \*\*50% / 50%\*\* tranches.
-
-
-
-\### Milestone 1 — Canonical Stacks payout integration + Nigeria local payout integration (50% — $5,000)
-
-
-
-This milestone combines what was previously two separate milestones because they are inseparable in practice. You cannot validate the Nigeria corridor without the canonical Stacks integration working, and the Stacks integration is unverifiable until it produces a real payout through a local provider.
-
-
+### Milestone 1 — Canonical Stacks payout integration (20% — $2,000)
 
 Deliverables:
 
+- Reconcile the orchestration core with the canonical USDCx withdrawal architecture
+- Correct the burn entrypoint model against current Stacks documentation
+- Produce testnet evidence of burn tracking
+- Document the integration boundary
 
-
-\*\*Canonical Stacks integration\*\*
-
-\- Reconcile the orchestration core with the canonical USDCx withdrawal architecture
-
-\- Correct the burn entrypoint model against current Stacks documentation
-
-\- Produce testnet evidence of burn tracking
-
-\- Document the integration boundary
-
-
-
-\*\*Nigeria local payout integration\*\*
-
-\- Complete the Yellow Card sandbox integration
-
-\- Validate the NGN payout workflow end-to-end
-
-\- Produce webhook verification evidence
-
-\- Demonstrate reconciliation and failure handling
-
-\- Produce end-to-end sandbox test evidence
-
-\- Produce a reproducible end-to-end payout with a complete evidence trail
-
-
-
-\### Milestone 2 — External integration and public release (50% — $5,000)
-
-
+### Milestone 2 — Nigeria local payout integration (30% — $3,000)
 
 Deliverables:
 
+- Complete the Yellow Card sandbox integration
+- Validate the NGN payout workflow end-to-end
+- Produce webhook verification evidence
+- Demonstrate reconciliation and failure handling
+- Produce end-to-end sandbox test evidence
+- Produce a reproducible end-to-end payout with a complete evidence trail
 
+### Milestone 3 — External integration and public release (50% — $5,000)
 
-\- Publish a public SDK or integration package
+Deliverables:
 
-\- Produce an integration guide
-
-\- Ship an external integrator example
-
-\- Conduct external developer testing
-
-\- Produce at least one external pilot if feasible
-
-\- Publish a complete release candidate with security posture, architecture docs, and maturity statement
-
-
+- Publish a public SDK or integration package
+- Produce an integration guide
+- Ship an external integrator example
+- Conduct external developer testing
+- Produce at least one external pilot if feasible
+- Publish a complete release candidate with security posture, architecture docs, and maturity statement
 
 Mainnet readiness is explicitly \*\*not\*\* in the grant scope. It requires production credentials and KYB that are out of reach without additional funding or ecosystem partnership.
 
+## Why three milestones
 
+The Stacks Endowment Getting Started track specifies two milestone structures:
 
-\## Why two milestones
+- Under $7,000: two milestones, 50% / 50%
+- $7,000 or more: three milestones, 20% / 30% / 50%
 
+This grant requests **$10,000**, which falls into the higher tier. The three-milestone structure aligns the payment schedule with demonstrated progress and matches the funder's published requirements for grants at this size.
 
-
-The Stacks Endowment Getting Started track specifies \*\*two tranches\*\*: one at the halfway point, one upon completion. A two-milestone structure maps directly onto that published model.
-
-
-
-The two milestones also reflect the actual dependency: the Nigeria corridor cannot be validated without the Stacks integration, and the Stacks integration is unverifiable until it produces a real payout. They are one milestone expressed in two parts. The external integration and public release are a distinct phase.
-
-
+The milestone boundaries also reflect the actual dependency structure of the work: canonical Stacks integration precedes Nigeria corridor validation; Nigeria corridor validation precedes external integration and public release.
 
 \## What the grant does not fund
-
-
 
 \- Mainnet deployment
 
@@ -176,11 +110,7 @@ The two milestones also reflect the actual dependency: the Nigeria corridor cann
 
 \- Commercial launch costs
 
-
-
 \## How success is verified
-
-
 
 | Claim | Means of verification |
 
@@ -198,15 +128,9 @@ The two milestones also reflect the actual dependency: the Nigeria corridor cann
 
 | The system is honest about its limits | Claims register with explicit UNVERIFIED markers |
 
-
-
 \## What would falsify the theory
 
-
-
 If any of these are true at the end of the grant period, the theory is falsified and the honest response is to say so:
-
-
 
 \- No external Stacks application expresses interest in integrating the layer
 
@@ -216,19 +140,10 @@ If any of these are true at the end of the grant period, the theory is falsified
 
 \- The ecosystem prefers to build its own rather than adopt
 
-
-
 Stating this in advance is what makes the theory falsifiable, and what makes the grant application honest.
-
-
 
 \## The strategic framing
 
-
-
 \*\*The last-mile payout layer for Stacks.\*\*
 
-
-
 The ecosystem has funded the primitives: escrow, streaming, savings, agent payments. The last mile — where value becomes local currency for a real person — is the layer still missing. This grant funds that layer.
-
