@@ -37,7 +37,23 @@ Payout Rail does not compete with Stacks payment primitives — it completes the
 
 The gap is not another payment primitive. The gap is the orchestration layer that connects them all to the local rails where real people receive real value.
 
-## 3. What this layer does
+## 3. Commercial model
+
+**The customer is the Stacks application that needs to pay people — not the end user.** The end user receives local currency. The Stacks application pays for the service that delivers it.
+
+The value proposition: **solve the last mile without rebuilding it.** Payout Rail gives any Stacks application a provider-agnostic orchestration layer with audit-grade evidence, deterministic idempotency, and settlement receipts, without the application rebuilding any of that infrastructure itself.
+
+The layer is **free, open-source, and self-hostable.** There is no transaction fee to the layer.
+
+Sustainability after the grant is a hypothesis, not a claim. The candidate models are:
+
+- A hosted orchestration tier for teams that do not want to run infrastructure
+- Per-payout support for self-hosters who want SLAs
+- Enterprise support for high-volume integrators
+
+None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.md` documents the full model, including the Blue Ocean analysis and the Business Model Canvas.
+
+## 4. What this layer does
 
 - **The pipeline** — a worker-per-tick loop advances every non-terminal disbursement one step at a time through its lifecycle, with idempotency and optimistic concurrency preventing double-execution.
 - **The state machine** — 15 states (a `preflight_check` entry gate plus the 14-state payout lifecycle) and 48 transitions (24 explicit + 24 generic), with guards and actions per edge, terminal states `settled` / `failed` / `cancelled`, and a `manual_review` human-in-the-loop path.
@@ -46,7 +62,7 @@ The gap is not another payment primitive. The gap is the orchestration layer tha
 - **The v1 public API** — idempotent create, advance, receipt, retry, recover, approve and resolve, behind fail-closed bearer auth, with a normalized error contract.
 - **Corridor configuration** — rate pairs, recipient-registry mode, gates, and circuit-breaker settings per corridor; NGN is implemented and covered by tests, KES/ZAR are configuration-proven.
 
-## 4. Status — maturity
+## 5. Status — maturity
 
 > **Maturity: Prototype — sandbox-ready interfaces.**
 
@@ -58,7 +74,7 @@ The gap is not another payment primitive. The gap is the orchestration layer tha
 > layer. **Do not use Payout Rail to move real funds or handle real beneficiary
 > data.**
 
-## 5. Claims and evidence
+## 6. Claims and evidence
 
 Consolidated from [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for external readers.
 Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKED / PLANNED / UNVERIFIED / KNOWN GAP**.
@@ -83,7 +99,7 @@ Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKE
 
 See [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for the full register with per-row evidence, and [`docs/GAP_REGISTER.md`](docs/GAP_REGISTER.md) for the open gaps.
 
-## 6. What it does NOT do
+## 7. What it does NOT do
 
 - Not a bridge, exchange, custodian, fiat payment processor, or creative-financing product.
 - Not a live production system — **not mainnet**.
@@ -93,7 +109,7 @@ See [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for the full register w
 
 Grounding: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §"Not in the system".
 
-## 7. Quick start
+## 8. Quick start
 
 ```bash
 npm ci
@@ -105,11 +121,11 @@ npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without crede
 - Default mode drives the real v1 router and pipeline to `settled` with an empty receipt `gaps` array — success is never fabricated.
 - Output goes to `demo-output/receipt-<id>.json` (gitignored). Pass `--output-dir <dir>` to relocate it.
 
-## 8. Test status
+## 9. Test status
 
 189 tests, 188 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters — zero infrastructure.
 
-## 9. Environment reference
+## 10. Environment reference
 
 All values below are read from the environment (`.env`); tokens are environment-only, never in code or the repository. See `.env.example`.
 
@@ -128,7 +144,7 @@ All values below are read from the environment (`.env`); tokens are environment-
 
 Poll variables (`BOS_POLL_INTERVAL_MS` / `BOS_MAX_POLL_ATTEMPTS`) were removed in Sprint 1.5 and do not exist. The dev auth backdoor (`BOS_ALLOW_UNAUTHENTICATED_DEV`) was removed in Sprint 3 and does not exist.
 
-## 10. Documentation
+## 11. Documentation
 
 | Doc                                                                    | What it covers                                                                                         |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -145,6 +161,6 @@ Poll variables (`BOS_POLL_INTERVAL_MS` / `BOS_MAX_POLL_ATTEMPTS`) were removed i
 
 Provenance: Payout Rail's orchestration layer originated in the CineX project and was extracted into an independent repository. The extraction-time record is archived in [`docs/EXTRACTION_REPORT.md`](docs/EXTRACTION_REPORT.md) (historical). CineX remains a separate product; Payout Rail is maintained independently. Sprint plans and reports under `docs/` are historical records and are not references to current behavior.
 
-## 11. License
+## 12. License
 
 MIT. Payout Rail's orchestration layer originated in the CineX project and is maintained independently (provenance and attribution in [`ATTRIBUTION.md`](ATTRIBUTION.md)). Contributions: see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for scope and process.
