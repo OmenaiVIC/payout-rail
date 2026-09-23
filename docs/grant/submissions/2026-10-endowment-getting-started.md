@@ -206,6 +206,9 @@ The project is deliberately honest about what is unverified. The README contains
 
 \*\*Amount, USD:\*\* $2,000
 
+\*\*Adoption metric:\*\*
+No adoption metric for this milestone — it is a technical validation milestone.
+
 \---
 
 \### Milestone 2
@@ -241,6 +244,9 @@ The project is deliberately honest about what is unverified. The README contains
 \*\*Payment percent:\*\* 30
 
 \*\*Amount, USD:\*\* $3,000
+
+\*\*Adoption metric:\*\*
+No adoption metric for this milestone — it is a technical validation milestone.
 
 \---
 
@@ -280,7 +286,13 @@ The project is deliberately honest about what is unverified. The README contains
 
 \*\*Final adoption metric:\*\*
 
-At least one external Stacks application has integrated Payout Rail in a sandbox or testnet pilot, evidenced by a public repository, a signed integration confirmation, or a demo run provided by the integrating team. If no external adoption occurs by the end of the grant period, the outcome is reported honestly in the final milestone report, and the theory of change is noted as partially falsified.
+Metric: External Stacks application integration.
+
+How it is measured: Count of external Stacks applications that have integrated Payout Rail in a sandbox or testnet pilot, verified by one of the following: a public repository, a signed integration confirmation, or a demo run provided by the integrating team.
+
+Target: At least one.
+
+If not met: Reported honestly in the final milestone report; the theory of change is noted as partially falsified.
 
 \---
 
