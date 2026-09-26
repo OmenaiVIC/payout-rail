@@ -54,6 +54,7 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 | 09  | `09_SPRINT_7_OPENSOURCE.md`       | Open-source release candidate.                            | Active     |
 | 10  | `10_SPRINT_8_GRANT.md`            | Product evidence and grant readiness.                     | Pending    |
 | 11  | `11_SPRINT_9_COMMERCIAL_MODEL.md` | Commercial model (stub, deferred).                        | Stub       |
+| 12 | `12_SPRINT_FLUTTERWAVE_ADAPTER.md` | Flutterwave v3 adapter — second provider behind the interface. | Active |
 
 Note: Sprint 3 is intentionally deferred until after Sprint 4. That is why its file is numbered `06_` while Sprint 4 is `05_`. The table lists them in execution order, not filename order.
 \---
