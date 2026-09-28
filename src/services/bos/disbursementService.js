@@ -602,6 +602,112 @@ export async function handleYellowCardWebhook(payload, { signatureValid = false 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sprint 12 — Flutterwave webhook handling
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Only this event type is actionable. Everything else is acknowledged, not applied. */
+const FLW_EVENT = 'transfer.completed';
+/** Only an explicit terminal outcome advances anything. */
+const FLW_TERMINAL_STATUSES = new Set(['SUCCESSFUL', 'FAILED']);
+
+/**
+ * Handle a Flutterwave webhook (verif-hash verification already done by the route).
+ *
+ * WHAT THIS DOES: verifies the payload's shape, resolves the target disbursement
+ * from `data.reference` (which carries the idempotency key), and reports what it
+ * did — truthfully.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO, and why:
+ *
+ *  1. It does not advance the state machine. The only edge into
+ *     `yellowcard_payout_confirmed` is guarded by `isPayoutConfirmed` and
+ *     actioned by `confirmYellowCardPayout` (stateMachine.js:151-155), and both
+ *     are hard-wired to `ctx.adapters.yellowcard` (transitionGuards.js:178-183).
+ *     This sprint does not touch the state machine (Scope Out) and has no
+ *     provider routing (`ctx.adapters.yellowcard` is hard-coded at 14 sites —
+ *     backlog P-1), so a Flutterwave-driven advance would either fail the guard
+ *     or issue a Yellow Card API call in response to a Flutterwave event. The
+ *     handler declines instead and says so, rather than half-advancing.
+ *
+ *  2. It does not write an evidence record. `recordWebhookPayload` hardcodes
+ *     `verification: { method: 'hmac-sha256' }` (evidenceCollector.js:279).
+ *     `verif-hash` is NOT an HMAC — it is a static shared secret compared as a
+ *     plain string — so recording a Flutterwave payload through that helper
+ *     would write a factually false verification method into the evidence
+ *     chain. Parameterizing the helper is a change to the evidence chain, which
+ *     is Scope Out. Flagged for the reviewer.
+ *
+ * Replay posture: `verif-hash` is a static shared secret with no payload
+ * integrity and no replay protection, so an identical captured request will
+ * always re-verify. That is a property of the scheme. It is harmless only
+ * because this handler holds no state to corrupt — see (1). When P-1 unblocks
+ * routing, duplicate suppression must come from the local `idempotency_key`
+ * UNIQUE constraint (migrations/001_bos_schema.sql:43), not from the signature.
+ *
+ * @param {Object} payload — the parsed Flutterwave webhook body
+ * @param {Object} [options]
+ * @param {boolean} [options.signatureValid] — set true only after verification
+ * @returns {Promise<{ processed: boolean, advanced: boolean, reason?: string, disbursement_id?: string }>}
+ */
+export async function handleFlutterwaveWebhook(payload, { signatureValid = false } = {}) {
+  const log = ctx().getLogger('disbursement:webhook:flutterwave');
+  const db = ctx().getDb();
+
+  // Fail closed on event type: acknowledge so the provider stops retrying, but
+  // change nothing.
+  const event = payload?.event;
+  if (event !== FLW_EVENT) {
+    log.info({ event }, 'Flutterwave webhook event not actionable');
+    return { processed: false, reason: `unhandled event: ${event ?? '(missing)'}` };
+  }
+
+  // Fail closed on status: only an explicit terminal outcome is actionable.
+  const status = payload?.data?.status;
+  if (!FLW_TERMINAL_STATUSES.has(status)) {
+    log.info({ status }, 'Flutterwave webhook status not actionable');
+    return { processed: false, reason: `unhandled status: ${status ?? '(missing)'}` };
+  }
+
+  // `data.reference` carries the idempotency key. The repo's durable uniqueness
+  // is on idempotency_key — NOT on a provider transfer id — so the reference is
+  // the correct join. See the module's replay-posture note.
+  const reference = payload?.data?.reference;
+  if (!reference) {
+    log.warn({}, 'Flutterwave webhook missing data.reference');
+    return { processed: false, reason: 'missing reference' };
+  }
+
+  const disbursement = await db.get(
+    `SELECT * FROM disbursements WHERE idempotency_key = $1`,
+    [reference]
+  );
+
+  if (!disbursement) {
+    log.warn({ reference }, 'No disbursement found for Flutterwave reference');
+    return { processed: false, reason: `unknown reference: ${reference}` };
+  }
+
+  if (TERMINAL_STATES.has(disbursement.status)) {
+    log.info({ reference, status: disbursement.status }, 'Disbursement already terminal');
+    return { processed: false, reason: 'already terminal', disbursement_id: disbursement.id };
+  }
+
+  // Verified, resolved, not applied. See the JSDoc for why advancing and
+  // recording are both out of reach this sprint.
+  log.info(
+    { reference, id: disbursement.id, status: disbursement.status, transfer_status: status, signatureValid },
+    'Flutterwave webhook verified; not applied (provider routing not implemented, P-1)'
+  );
+
+  return {
+    processed: true,
+    advanced: false,
+    disbursement_id: disbursement.id,
+    reason: 'verified but not applied: pipeline provider routing is not implemented (backlog P-1), and the payout-confirmation edge is wired to the Yellow Card adapter',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sprint 5 — public integration surface (approve / resolve / receipt)
 // ─────────────────────────────────────────────────────────────────────────────
 
