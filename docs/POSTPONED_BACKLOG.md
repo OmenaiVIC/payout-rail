@@ -174,3 +174,84 @@ visibility; all are additive to the current (correct but coarse) single check.
   route changes + tests. No state-machine changes required.
 - **Resurrect if:** more than a handful of operators, or an audit requirement that
   a free-form label cannot satisfy.
+
+---
+
+## Sprint 12 additions (Flutterwave adapter — deferred, not built)
+
+Per `docs/PRODUCT_CHANGE_CONTROL.md:35-52` and approved in Sprint 12 review. All deferred items
+class **D** (backlog). None implemented.
+
+### P-1 — Pipeline provider routing (full corridor routing of the prove-record flow)
+
+- **Status:** POSTPONED — **D**. Full routing of the prove-record flow — a corridor must reach
+  the **evidence chain**, not just the config layer. Resolve the payout adapter per corridor at
+  all 14 hard-coded `ctx.adapters.yellowcard` sites (`transitionActions.js:359,368,375,390,391,393,399`;
+  `transitionGuards.js:183`; `reconciliationWorker.js:241,246,257,268,282,487`; `settlementReceipt.js:111,204`);
+  parameterise `upsertExternalRef`/`recordApiResponse` provider keys and the `settlementReceipt`
+  evidence regex.
+- **Why deferred:** Requires changing the state machine's action layer **and** the evidence chain — both
+  Scope (Out) (`prompt:183,185`). Needs explicit re-authorization. Blocks any real non-default-provider
+  routing (decision D-1).
+- **Consequence until it lands:** `PAYOUT_PROVIDER` selects which adapter the context is built with, but
+  the payout leg still reads `ctx.adapters.yellowcard` at all 14 sites; a verified Flutterwave webhook
+  returns `{ processed: true, advanced: false }` and writes no evidence (see
+  `docs/PROVIDER_ADAPTERS.md` §3.1). Pinned by `test/unit/flutterwave-provider-config.test.js`.
+- **Suggested fix direction:** when implemented, the handler must also gain a truthful verification
+  method on the evidence record (`verif-hash` is **not** `hmac-sha256`), and duplicate suppression must
+  come from the `idempotency_key` UNIQUE constraint — that guarantee belongs in `test/integration/`, not
+  in a `FakeDb` test.
+
+### P-2 — Recipient shape extension for wallet-address destinations
+
+- **Status:** POSTPONED — **D**.
+- **Problem (plain English):** the Flutterwave body delivers USDC to a wallet address
+  (`recipient.walletAddress || recipient.address || recipient.destination`), but the pipeline's
+  `ngn_recipient` has no wallet field, so a real disbursement cannot populate `destination` today.
+- **Why deferred:** Requires a schema/migration change (a sprint "Blocker to Report" item, `prompt:345`)
+  and depends on D-2 (USDC-to-wallet semantics).
+- **Suggested fix direction:** extend the recipient shape so a corridor can carry a wallet destination.
+
+### P-3 — Extract shared `classifyError` taxonomy
+
+- **Status:** POSTPONED — **D**.
+- `classifyError` is currently duplicated in `yellowcardAdapter.js` and `xreserveAdapter.js` (and, now,
+  mirrored in `flutterwaveAdapter.js`).
+- **Why deferred:** Extracting it into a common module would modify the Yellow Card adapter = Scope (Out)
+  (`prompt:189`).
+- **Suggested fix direction:** a shared module, with Yellow Card behaviour provably unchanged by the
+  existing 28 wire-contract tests.
+
+### P-4 — `docs/flutterwave-api-reference.md` breadth
+
+- **Status:** POSTPONED — **D**. This sprint wrote a **stub** reference sourced **only** from the sprint
+  prompt (no network calls permitted), so most fields carry UNVERIFIED markers. See
+  `docs/flutterwave-api-reference.md`.
+- **Why deferred:** Completing it requires fetching current Flutterwave v3 documentation — forbidden this
+  sprint.
+- **Suggested fix direction:** mirror `docs/yellowcard-api-reference.md` from live v3 docs, then upgrade
+  the affected UNVERIFIED markers with the evidence behind each.
+
+### P-5 — Provider-agnostic webhook route
+
+- **Status:** POSTPONED — **D**.
+- `POST /api/bos/webhooks/:provider` replacing the per-provider routes (`/yellowcard`, `/flutterwave`).
+- **Why deferred:** two routes is duplication, but a generic route weakens the verify-first explicitness.
+  Revisit at three providers.
+
+### P-6 — Live sandbox verification loop for Flutterwave
+
+- **Status:** POSTPONED — **D**, blocked by platform limitation. G-20-style loop (auth → submit → poll →
+  webhook) for Flutterwave.
+- **Why deferred:** sandbox stablecoin transfers never finalize, so webhooks are never fired — this is a
+  platform limitation, not an adapter defect (§9.1 #1/#3 of the sprint plan). Also gated on credentials
+  (G-20). Not implemented in Sprint 12; external verification remains **UNVERIFIED**.
+
+### P-7 — Flutterwave off-ramp (USDC → NGN bank payout)
+
+- **Status:** POSTPONED — **D**. Flutterwave off-ramp (USDC → NGN bank payout) — endpoint not verified
+  offline, deferred to a future sprint.
+- **Why deferred:** the documented v3 transfers body verified in this sprint is a USDC-to-wallet
+  disbursement, **not** an NGN bank payout; a separate endpoint is required and is not verified offline.
+- **Suggested fix direction:** identify and wire the off-ramp endpoint in a future sprint, then run the
+  P-6-style verification loop before any claim beyond `IMPLEMENTED + TESTED`.
