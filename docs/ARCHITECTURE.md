@@ -203,10 +203,45 @@ in `docs/SECURITY.md` (Sprint 7).
   consume (`transitionActions.js`, `evidenceCollector.js`).
 - **Error taxonomy** — `classifyError` splits **permanent** (no retry will help → fail path)
   from **transient** (retry within budget → retry path). Guards `withinRetryBudget` gate the
-  retry loop.
+  retry loop. The taxonomy is currently duplicated per adapter (three copies); extracting it
+  is backlog P-3.
 - **Signature helpers** — symmetric-key HMAC request signing and verification using
   `YcHmacV1` for Yellow Card (`webhookVerifier.js`), with hex/base64/base64url encodings,
-  all wire-contract tested.
+  all wire-contract tested. **Flutterwave does not use HMAC** — see below.
+
+### 5.1 A second provider, and what it does and does not change
+
+Sprint 12 added `flutterwaveAdapter.js`, the second payout-provider adapter behind this
+boundary. Its value to the architecture is that it exercises the abstraction with a second
+implementation; its limits are equally important to state:
+
+- **The documented body is a USDC-to-wallet disbursement, not an NGN bank payout.** The v3
+  transfers body debits NGN from the merchant balance and delivers USDC to a POLYGON wallet
+  address. **Yellow Card remains the primary NGN payout provider.** See
+  `docs/flutterwave-api-reference.md` §0.
+- **Provider *routing* is not implemented.** `PAYOUT_PROVIDER` (default `yellowcard`) selects
+  the adapter published on `ctx.adapters` at the **config layer only**. The payout leg itself
+  is hard-wired to `ctx.adapters.yellowcard` at **14 call sites**, several of them in the
+  evidence chain (`transitionActions.js`, `transitionGuards.js`, `reconciliationWorker.js`,
+  `settlementReceipt.js`). Runtime per-corridor routing is backlog **P-1** and requires
+  explicit re-authorization, because it touches the state machine's action layer and the
+  evidence chain — both Scope (Out) for this sprint.
+- **A second verification scheme, in the canonical verifier.** Flutterwave authenticates
+  webhooks with `verif-hash`, a **static shared secret** compared as a plain string — not a
+  function of the body. It cannot be expressed through `verifyHmac` (no `verif-hash` value is
+  an HMAC digest), so `verifyFlutterwaveWebhook` is a separate branch and the two schemes must
+  not cross-accept. Tested both directions.
+- **⚠ `verif-hash` is a weaker control than HMAC.** It authenticates the *sender* only: **no
+  payload integrity** (a forged body with a valid hash verifies) and **no replay protection** (a
+  captured request replays forever). The **load-bearing control is the local `idempotency_key`
+  UNIQUE constraint** (`migrations/001_bos_schema.sql:43`), not the signature.
+- **Consequently the Flutterwave webhook handler verifies but does not advance.** It resolves
+  the target from `data.reference` and reports `{ processed: true, advanced: false }` because
+  (a) the only edge into `yellowcard_payout_confirmed` is guarded and actioned by
+  Yellow-Card-specific code, and (b) the evidence helper hardcodes
+  `verification.method = 'hmac-sha256'`, which would be a **false** record for a non-HMAC
+  scheme. Both are consequences of P-1; the reasoning and the failing-closed tests are in
+  `docs/PROVIDER_ADAPTERS.md` §3.1.
 
 **What lives inside vs outside the layer (F7 honesty per adapter):**
 
@@ -215,6 +250,7 @@ in `docs/SECURITY.md` (Sprint 7).
 | **Stacks**      | Burn wire format, attestation service contract | `observeBurn` → records `tx_hash`; burn + attestation are **mock-only** (GAP-09 says UNVERIFIED burn)                                                   |
 | **xReserve**    | USDC bridge release semantics                  | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed                                                                        |
 | **Yellow Card** | Sends API submit/lookup/payout-status/webhook  | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20) |
+| **Flutterwave** | v3 Transfers submit/lookup/health; `verif-hash` (USDC→wallet, not NGN payout) | Bearer auth, the 8-field transfers body, `currency`→`debit_currency` inversion, verbatim `amount`, fail-closed wallet destination, status normalization, `verif-hash` verify + route — 22 wire-contract + 24 webhook + 8 config tests. **Not routed from the pipeline (P-1)**; sandbox/live **UNVERIFIED**; reference doc is a prompt-derived stub (P-4) |
 
 The layer takes no custody, does not hold keys (it reads a signing key from the integrator's environment), and never guesses an external outcome.
 
@@ -226,7 +262,8 @@ Full JSON schemas, error codes, and `POST` condition notes: `docs/INTEGRATION.md
   `GET /` (list), `GET /:id`, `GET /:id/receipt`, `POST /:id/advance?steps=`,
   `POST /:id/retry`, `POST /:id/recover`, `POST /:id/approve`, `POST /:id/resolve`.
 - **Webhooks** (`/api/bos/webhooks`): `POST /yellowcard` (verify-first HMAC, **no** Bearer),
-  `POST /yellowcard/test` (`requireApiToken`).
+  `POST /yellowcard/test` (`requireApiToken`), `POST /flutterwave` (verify-first `verif-hash`
+  static-shared-secret compare, **no** Bearer — see §5.1 for the security delta).
 - **Monitoring** (`/api/bos/monitoring`, cron token): health, pipeline, active, alerts,
   manual-review, run, workers, cron routes.
 - Error envelope: `{ error, error_code }` (`404 not_found`, `400 invalid_body`,

@@ -61,6 +61,7 @@ None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.m
 - **The reconciliation layer** — internal evidence is reconciled against provider `external_refs`; amount/state drift is detected and routed to `manual_review` rather than silently corrected.
 - **The v1 public API** — idempotent create, advance, receipt, retry, recover, approve and resolve, behind fail-closed bearer auth, with a normalized error contract.
 - **Corridor configuration** — rate pairs, recipient-registry mode, gates, and circuit-breaker settings per corridor; NGN is implemented and covered by tests, KES/ZAR are configuration-proven.
+- **Two payout provider adapters** — Yellow Card (NGN bank/momo payout) and Flutterwave (a v3 **USDC-to-wallet** disbursement, *not* an NGN payout; `docs/flutterwave-api-reference.md` §0). **Yellow Card remains the primary NGN payout provider.** Both are wire-contract tested against a stubbed fetch and both are **sandbox/live UNVERIFIED**. Provider *selection* is available at the config layer via `PAYOUT_PROVIDER` (default `yellowcard`); **pipeline routing is not implemented** (backlog P-1) — the payout leg remains wired to Yellow Card.
 
 ## 5. Status — maturity
 
@@ -68,7 +69,7 @@ None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.m
 
 > Payout Rail is **prototype** software. The pipeline, the 15-state machine, the
 > evidence chain, the v1 public API, and the Nigeria (NGN) corridor are
-> implemented and covered by 188 passing automated tests, but no external adapter
+> implemented and covered by 242 passing automated tests, but no external adapter
 > has been verified against a live or sandbox provider (no provider credentials
 > exist in this environment — G-20), and no external application has used the
 > layer. **Do not use Payout Rail to move real funds or handle real beneficiary
@@ -113,7 +114,7 @@ Grounding: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §"Not in the system".
 
 ```bash
 npm ci
-npm test        # 189 tests, 188 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
+npm test        # 243 tests, 242 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
 npm run demo:payout:ngn                # demo mode — loopback, fully offline, in-process mocks only
 npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without credentials rather than running
 ```
@@ -123,7 +124,7 @@ npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without crede
 
 ## 9. Test status
 
-189 tests, 188 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters — zero infrastructure.
+243 tests, 242 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters and a stubbed `fetch` — zero infrastructure.
 
 ## 10. Environment reference
 

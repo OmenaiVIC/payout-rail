@@ -9,6 +9,13 @@
 > `SANDBOX VERIFIED` · `MOCKED` · `PLANNED` · `UNKNOWN`.
 > Where a claim cannot be fully established, an additional tag (`PARTIAL` / `UNVERIFIED` /
 > `FALSE` / `DEAD`) is used for precision. **No claim is upgraded merely because the code looks plausible.**
+>
+> **Sprint 12 (Flutterwave):** Sprint 12 added two row classes to §3, §5, and §6. The references
+> prefixed `FLW-` are set to `IMPLEMENTED + TESTED` (wire-contract tests against a stubbed
+> `fetch`) and are **never** marked `VERIFIED`. The classification rule from the sprint: if a
+> claim section contains any `UNVERIFIED` entry, the enclosing adapter claim is
+> `IMPLEMENTED + TESTED (wire-level; external UNVERIFIED)`. See
+> `docs/SPRINT_FLUTTERWAVE_REPORT.md`.
 
 ---
 
@@ -56,6 +63,17 @@
 | `fallbackPoller.js` header describes active polling | `fallbackPoller.js:1-9` | Not imported anywhere (`index.js` starts only monitor/reaper/reconciliation/pipeline) | DEAD |
 | `auditTimeline.js` header: "enriched with external status snapshots" | `auditTimeline.js:1-6` | Reads `external_status_snapshots` (`auditTimeline.js:48-53`) which is never written; module itself dead | DEAD |
 | `webhookVerifier.js` header: "Validates webhook authenticity" | `webhookVerifier.js:1-6` | `webhooks.js:15,21-27` imports `verifyYellowCardWebhook` and verifies the **raw** body (`req.rawBody`) before handling; fails closed on missing secret; `verifyHmac` accepts hex/base64/base64url and checks `x-yc-signature` first | RESOLVED (Sprint 2 G-06 wired; Sprint 3 made decodings artifact-correct + `x-yc-signature` primary) |
+| `flutterwaveAdapter.js` header: "$0.24 wire fee not asserted" | `flutterwaveAdapter.js:14` | Callers assert only the documented body. The fee is **not** part of the contract; the `$0.24` line was dropped as unverifiable | RESOLVED (no claim exists) |
+| `flutterwaveAdapter.js`: `idempotency_key` | `flutterwaveAdapter.js:17` | Sent on `POST /v3/transfers` per the API reference; the local UNIQUE constraint is the replay control | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `flutterwaveAdapter.js` header: "debit_currency = currency" | `flutterwaveAdapter.js:11-13` (`debit_currency` ← `currency`) | Header says "debit_currency always equals the currency parameter" | DOC-DRIFT (Sprint 12) — header inconsistent with the Sprint 12 semantic that the wire field `currency` is constant `USDC`; awaiting a comment-only fix |
+| `flutterwaveAdapter.js`: `amount` verbatim | `flutterwaveAdapter.js:21` | `amount` passes through with no conversion; code comment: kobo convention not applied | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `flutterwaveAdapter.js`: `network` POLYGON | `flutterwaveAdapter.js:19` | `network` = `'POLYGON'`, `currency` = `'USDC'` | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `flutterwaveAdapter.js`: `destination` | `flutterwaveAdapter.js:18,35` | Resolves `recipient.walletAddress || recipient.address || recipient.destination`; throws `MissingRecipientDestinationError` (class exported) if absent | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `flutterwaveAdapter.js`: did not "wire" the payout leg | `bridgeAdapterFactory.js`, `src/index.js` | `PAYOUT_PROVIDER` selects via `getPayoutAdapter()` but only for the config layer; the pipeline leg reads `ctx.adapters.yellowcard` at 14 sites | IMPLEMENTED (additive-only, Sprint 12) |
+| `flutterwaveAdapter.js`: `classifyError` mapping | `flutterwaveAdapter.js:26` | `400/401/404/409` permanent; `425` permanent; `500/502/503` transient; default `-32010` (preserved) | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `flutterwaveAdapter.js`: `healthCheck()` | `flutterwaveAdapter.js:187` | Calls `GET /v3/balances` and normalizes `data` | IMPLEMENTED + TESTED (wire-level; endpoint UNVERIFIED — not in confirmed list) |
+| `flutterwaveAdapter.js`: `verifyWebhookSignature` | `flutterwaveAdapter.js:206` | Uses `webhookVerifier.js` branch for `'flutterwave'` (plain-string `verif-hash`); fails closed when secret is unset | IMPLEMENTED + TESTED (wire-level; external UNVERIFIED) |
+| `webhookVerifier.js` header: two branches (HMAC + `verif-hash`) | `webhookVerifier.js:1-6` | `verifyWebhook('yellowcard', ...)` verifies HMAC; `verifyWebhook('flutterwave', ...)` does plain-string `verif-hash` compare; cross-acceptance tested both directions | IMPLEMENTED + TESTED |
 
 ## 4. Functional claims vs observed wiring
 
@@ -83,6 +101,24 @@
 | Yellow Card send endpoint/payload | Adapter: `POST {SENDS_BASE_URL}/send` with the documented Sends body `{sequenceId, channelType: 'bank'|'momo', country, currency, localAmount, forceAccept, destination}`; legacy `amount`/`recipient`/`recipientType`/`callbackUrl` and the `X-Idempotency-Key` header dropped. Wire-level per `docs/yellowcard-api-reference.md`. Live field precision (kobo vs USD, networkId) UNVERIFIED (G-20). | RESOLVED vs docs (Sprint 3) — external live UNVERIFIED |
 | Yellow Card sandbox | Base URL `https://sandbox.api.yellowcard.io/business` hard-coded default production; no credentials | SANDBOX-CAPABLE (no sandbox evidence) |
 
+### 5.1 Flutterwave provider claims
+
+**Body semantics are the notable part of Sprint 12.** The sprint resolution (D-2) is that the
+v3 body is a **LON to wallet** (USDC, POLYGON), **not an NGN payout**, and Yellow Card remains
+the primary NGN payout provider. `debit_currency = currency` (parameter), `currency = USDC`
+(constant) is therefore intentional, not a transposition error (D-4).
+
+| Claim | Wire basis | Evidence | Status |
+|---|---|---|---|
+| `POST /v3/transfers` body shape (8 fields) | `flutterwaveAdapter.js:11-21` | 22 wire-contract tests lock the body/status mapping to `docs/flutterwave-api-reference.md` | IMPLEMENTED + TESTED (wire-level) |
+| `verif-hash` webhook (not an HMAC) | `webhookVerifier.js` `'flutterwave'` branch + `webhooks.js` `/flutterwave` route | 24 webhook tests incl. fail-closed + cross-acceptance | IMPLEMENTED + TESTED (wire-level) |
+| Flutterwave webhook **does not advance** the state machine | `disbursementService.js` `handleFlutterwaveWebhook` | Returns `{ processed: true, advanced: false }`; asserted by tests — see `docs/PROVIDER_ADAPTERS.md` §3.1 | IMPLEMENTED + TESTED (by design, P-1) |
+| USDC-to-wallet disbursement, not NGN payout | `docs/flutterwave-api-reference.md` §0 | Sprint resolution D-2; logged as a deviation from the prompt | DOC-CONFIRMED (wire-contract tested) |
+| Live/sandbox verification | — | **No credentials**; no provider call made | UNVERIFIED (external) |
+| `GET /v3/balances` (health) | `flutterwaveAdapter.js:187` | Endpoint is **not** in the confirmed list | UNVERIFIED (endpoint) |
+| Fee per transfer ($0.24) | — | Dropped as unverifiable | NOT CLAIMED |
+| Reference source | `docs/flutterwave-api-reference.md` | Written from sprint prompt only; no docs fetched, no network | UNVERIFIED SOURCE (P-4) |
+
 ## 6. Claims register summary
 
 - **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes. Sprint 4 closed G-16/G-17: **all six recorders live** (webhook, poll, manual-note, api, tx-hash, gate) plus the canonical `transition` record per successful transition and the `reconciliation_detection` type (4b writer); the four write-dead tables are wired and the two dead tables dropped (see `docs/PRODUCT_BASELINE.md`, `docs/GAP_REGISTER.md`).
@@ -90,5 +126,5 @@
 - **DEAD (Sprint 7 re-audit):** `fallbackPoller` — **removed** in Sprint 1.5 (G-14), no longer in the tree. `auditTimeline` — ESM-converted in Sprint 1.5, imports cleanly, but is still **not imported by the app** (referenced only by its own unit test); treated as leftover pending wiring. `webhookVerifier` — **no longer dead**: wired live at `webhooks.js:15` and `yellowcardAdapter.js:22`.
 - **SIMULATED:** xReserve attestation (Hiro proxy); xReserve destination-release **observation surface**
   (records exactly what it is told; the fabricated no-op was removed in Sprint 2); mock adapters.
-- **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint.
-- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; manual-review resolution API; disbursement create/approve/recover API; tests. (Sprint 4 wired `manual_review_queue` enqueue + resolution-on-terminal, but the operator resolution API stays Sprint 5.)
+- **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint. **Flutterwave (Sprint 12)** is `IMPLEMENTED + TESTED` (wire-level) with external `UNVERIFIED`; its reference doc source is itself UNVERIFIED (P-4) — see §5.1.
+- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; manual-review resolution API; disbursement create/approve/recover API; tests. (Sprint 4 wired `manual_review_queue` enqueue + resolution-on-terminal, but the operator resolution API stays Sprint 5.) **Sprint 12 backlog:** full corridor provider routing (P-1) — the Flutterwave handler verifies but does not advance; UNVERIFIED-list maintenance for new Sprint 12 endpoint claims is in `docs/SPRINT_FLUTTERWAVE_REPORT.md`. Flutterwave sandbox/live verification is gated on credentials (G-20) and remains `UNVERIFIED`.

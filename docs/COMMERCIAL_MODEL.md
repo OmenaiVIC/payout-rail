@@ -256,7 +256,7 @@ Self-service and community-driven. No dedicated account manager for free users. 
 
 |---|---|
 
-| Yellow Card | First payout provider (NGN corridor). Licensed, regulated. |
+| Yellow Card | First and primary payout provider for the NGN corridor. Licensed, regulated. The pipeline payout leg is hard-wired to Yellow Card (14 sites); Flutterwave is not an NGN off-ramp today. |
 
 | Stacks Endowment | Grant funder. Validates the infrastructure thesis. |
 
@@ -265,6 +265,12 @@ Self-service and community-driven. No dedicated account manager for free users. 
 | Let Africa Build (LAB) | Developer pipeline and ecosystem outreach. |
 
 | CineX | First integrator. Proof of adoptability. |
+
+| Flutterwave | Second payout adapter (Sprint 12): v3 **USDC-to-wallet disbursement**, NOT an NGN bank payout (`docs/flutterwave-api-reference.md` §0). Wire-contract tested; **not routed from the pipeline** (backlog P-1); **sandbox/live UNVERIFIED** (no credentials). Commercial potential is as a corridor option, not yet an active off-ramp partner. |
+
+> **Partner-role honesty.** Flutterwave is listed as a partner *role* because the adapter exists and is tested at the wire level — not because a commercial relationship exists. Its status per `docs/CLAIMS_REGISTER.md` §5.1 is `IMPLEMENTED + TESTED` with **external UNVERIFIED**, its reference doc is a prompt-derived stub (P-4), and the pipeline does not route through it. No revenue claim is implied; "No revenue exists today" is unchanged.
+>
+> **Corridor composition.** Corridor abstraction (NGN first, KES/ZAR configurable) predates Sprint 12. Flutterwave does not change the corridor map: the v3 body delivers USDC to a wallet; the NGN payout corridor is still Yellow Card's. Full provider routing (P-1) would change this section when it lands, and it is deferred because it touches the state machine action layer and the evidence chain.
 
 
 
