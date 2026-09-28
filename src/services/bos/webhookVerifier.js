@@ -1,18 +1,32 @@
 /**
- * BOS Webhook Verifier — HMAC-SHA256 signature verification for incoming webhooks
+ * BOS Webhook Verifier — signature verification for incoming webhooks
  *
- * Validates webhook authenticity from xReserve and Yellow Card.
+ * Validates webhook authenticity from xReserve, Yellow Card and Flutterwave.
  * Supports configurable secret per adapter.
  *
  * ESM, single canonical verifier: adapter-level verifyWebhookSignature
- * (yellowcardAdapter.js) delegates here. Fails CLOSED: when no secret is
- * configured the payload is rejected, never trusted.
+ * (yellowcardAdapter.js, flutterwaveAdapter.js) delegates here. Fails CLOSED:
+ * when no secret is configured the payload is rejected, never trusted.
+ *
+ * Two schemes live here, and they are not interchangeable:
+ *
+ *   - verifyHmac (xReserve, Yellow Card): a per-body HMAC-SHA256 digest. The
+ *     signature is a function of the body, so tampering invalidates it.
+ *   - verifyFlutterwaveWebhook: a STATIC SHARED SECRET plain-string comparison
+ *     of the `verif-hash` header. It is NOT a function of the body, so it cannot
+ *     be expressed through verifyHmac — no verif-hash value is ever such a
+ *     digest, and routing Flutterwave through verifyHmac would silently reject
+ *     every genuine Flutterwave webhook.
  */
 
 import crypto from 'node:crypto';
 
 function getXReserveSecret() { return process.env.XRESERVE_WEBHOOK_SECRET || ''; }
 function getYellowCardSecret() { return process.env.YELLOW_CARD_WEBHOOK_SECRET || ''; }
+
+// Read lazily at call time (like the getters above) so the unconfigured case is
+// testable without cache-busted re-imports.
+function getFlutterwaveSecret() { return process.env.FLW_SECRET_HASH || ''; }
 
 /**
  * Verify HMAC-SHA256 signature of a webhook payload
@@ -138,8 +152,61 @@ function verifyYellowCardWebhook(rawBody, headers) {
 }
 
 /**
+ * Verify a Flutterwave webhook
+ *
+ * Header checked: verif-hash — compared as a PLAIN STRING against the static
+ * FLW_SECRET_HASH secret. This is not an HMAC; the header value is not derived
+ * from the request body, so `rawBody` is accepted for signature parity with the
+ * other verifiers and is deliberately NOT part of the comparison.
+ *
+ * ⚠ SECURITY — this scheme is materially weaker than the HMAC used for xReserve
+ * and Yellow Card. Because the value is a static shared secret rather than a body
+ * digest, it authenticates the SENDER ONLY and provides:
+ *   - no payload integrity — a forged body with a valid hash verifies exactly as
+ *     well as a genuine one, so anyone holding FLW_SECRET_HASH can forge an
+ *     arbitrary transfer.completed payload; and
+ *   - no replay protection — a captured valid request is replayable forever.
+ *     The scheme has nowhere to carry a timestamp or nonce, so no additional
+ *     check can be added here.
+ *
+ * The load-bearing compensating control is NOT this comparison — it is the local
+ * durable idempotency_key UNIQUE constraint (migrations/001_bos_schema.sql:43).
+ * The handler derives the disbursement from data.reference, which carries the
+ * idempotency key, so a replayed webhook collides on that constraint and cannot
+ * advance a second payout. If the secret is rotated or that constraint is ever
+ * relaxed, the replay risk becomes real. Treat FLW_SECRET_HASH as a credential:
+ * never committed, never logged, and never log the verif-hash header value.
+ *
+ * Fail-closed: an unconfigured secret rejects, rather than skipping, checks.
+ *
+ * @param {string|Buffer} rawBody — accepted for interface parity; unused
+ * @param {Object} headers — request headers
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+function verifyFlutterwaveWebhook(rawBody, headers) {
+  const secret = getFlutterwaveSecret();
+  if (!secret) {
+    return { valid: false, reason: 'no_secret_configured' };
+  }
+
+  const signature = headers['verif-hash'] || '';
+
+  if (!signature) {
+    return { valid: false, reason: 'missing_signature' };
+  }
+
+  // Constant-time over equal-length buffers. timingSafeEqual throws on a length
+  // mismatch, and a length check also matches Flutterwave's documented exact
+  // string comparison observably.
+  const a = Buffer.from(String(signature), 'utf8');
+  const b = Buffer.from(secret, 'utf8');
+  const valid = a.length === b.length && crypto.timingSafeEqual(a, b);
+  return valid ? { valid: true } : { valid: false, reason: 'invalid_signature' };
+}
+
+/**
  * Generic webhook verification — auto-detects source
- * @param {string} source — 'xreserve' | 'yellowcard'
+ * @param {string} source — 'xreserve' | 'yellowcard' | 'flutterwave'
  * @param {string|Buffer} rawBody
  * @param {Object} headers
  * @returns {{ valid: boolean, reason?: string }}
@@ -150,6 +217,8 @@ function verifyWebhook(source, rawBody, headers) {
       return verifyXReserveWebhook(rawBody, headers);
     case 'yellowcard':
       return verifyYellowCardWebhook(rawBody, headers);
+    case 'flutterwave':
+      return verifyFlutterwaveWebhook(rawBody, headers);
     default:
       return { valid: false, reason: `unknown_source: ${source}` };
   }
@@ -159,5 +228,6 @@ export {
   verifyHmac,
   verifyXReserveWebhook,
   verifyYellowCardWebhook,
+  verifyFlutterwaveWebhook,
   verifyWebhook,
 };
