@@ -219,7 +219,7 @@ implementation; its limits are equally important to state:
   transfers body debits NGN from the merchant balance and delivers USDC to a POLYGON wallet
   address. **Yellow Card remains the primary NGN payout provider.** See
   `docs/flutterwave-api-reference.md` §0.
-- **Provider *routing* is not implemented.** `PAYOUT_PROVIDER` (default `yellowcard`) selects
+- **Provider _routing_ is not implemented.** `PAYOUT_PROVIDER` (default `yellowcard`) selects
   the adapter published on `ctx.adapters` at the **config layer only**. The payout leg itself
   is hard-wired to `ctx.adapters.yellowcard` at **14 call sites**, several of them in the
   evidence chain (`transitionActions.js`, `transitionGuards.js`, `reconciliationWorker.js`,
@@ -231,7 +231,7 @@ implementation; its limits are equally important to state:
   function of the body. It cannot be expressed through `verifyHmac` (no `verif-hash` value is
   an HMAC digest), so `verifyFlutterwaveWebhook` is a separate branch and the two schemes must
   not cross-accept. Tested both directions.
-- **⚠ `verif-hash` is a weaker control than HMAC.** It authenticates the *sender* only: **no
+- **⚠ `verif-hash` is a weaker control than HMAC.** It authenticates the _sender_ only: **no
   payload integrity** (a forged body with a valid hash verifies) and **no replay protection** (a
   captured request replays forever). The **load-bearing control is the local `idempotency_key`
   UNIQUE constraint** (`migrations/001_bos_schema.sql:43`), not the signature.
@@ -245,12 +245,12 @@ implementation; its limits are equally important to state:
 
 **What lives inside vs outside the layer (F7 honesty per adapter):**
 
-| Adapter         | Outside (provider claims)                      | Inside (this layer, tested)                                                                                                                             |
-| --------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Stacks**      | Burn wire format, attestation service contract | `observeBurn` → records `tx_hash`; burn + attestation are **mock-only** (GAP-09 says UNVERIFIED burn)                                                   |
-| **xReserve**    | USDC bridge release semantics                  | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed                                                                        |
-| **Yellow Card** | Sends API submit/lookup/payout-status/webhook  | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20) |
-| **Flutterwave** | v3 Transfers submit/lookup/health; `verif-hash` (USDC→wallet, not NGN payout) | Bearer auth, the 8-field transfers body, `currency`→`debit_currency` inversion, verbatim `amount`, fail-closed wallet destination, status normalization, `verif-hash` verify + route — 22 wire-contract + 24 webhook + 8 config tests. **Not routed from the pipeline (P-1)**; sandbox/live **UNVERIFIED**; reference doc is a prompt-derived stub (P-4) |
+| Adapter         | Outside (provider claims)                                                     | Inside (this layer, tested)                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stacks**      | Burn wire format, attestation service contract                                | `observeBurn` → records `tx_hash`; burn + attestation are **mock-only** (GAP-09 says UNVERIFIED burn)                                                                                                                                                                                                                                                                                                                                    |
+| **xReserve**    | USDC bridge release semantics                                                 | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed                                                                                                                                                                                                                                                                                                                                                         |
+| **Yellow Card** | Sends API submit/lookup/payout-status/webhook                                 | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20)                                                                                                                                                                                                                                                                                  |
+| **Flutterwave** | v3 Transfers submit/lookup/health; `verif-hash` (USDC→wallet, not NGN payout) | Bearer auth, the 8-field transfers body, `currency`→`debit_currency` inversion, verbatim `amount`, fail-closed wallet destination, status normalization, `verif-hash` verify + route — 22 wire-contract + 24 webhook + 8 config tests. **Not routed from the pipeline (P-1)**; sandbox/live **UNVERIFIED**; reference doc is a prompt-derived stub (P-4); off-ramp blocked by F4B production-account prerequisite (confirmed 2026-10-02) |
 
 The layer takes no custody, does not hold keys (it reads a signing key from the integrator's environment), and never guesses an external outcome.
 

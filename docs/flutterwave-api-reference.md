@@ -10,7 +10,7 @@ adapter's wire-contract tests are measured against, mirroring
 > This document was written **from the sprint prompt only**
 > (`docs/prompts/12_SPRINT_FLUTTERWAVE_ADAPTER.md:23-45`). **No Flutterwave
 > documentation was fetched and no sandbox call was made while writing it** — the
-> sprint forbids network calls. It is therefore *narrower and less trustworthy* than
+> sprint forbids network calls. It is therefore _narrower and less trustworthy_ than
 > `yellowcard-api-reference.md`, which was built from retrieved public docs.
 > Completing it requires fetching current Flutterwave v3 documentation; that work is
 > logged as **P-4** in `docs/POSTPONED_BACKLOG.md`.
@@ -49,7 +49,7 @@ Four consequences, each load-bearing for how this adapter may be described:
 
 1. **It does not serve the Nigeria / NGN local-fiat payout leg.** The product thesis
    rests on local fiat payouts (`docs/prompts/00_MASTER.md:31`); this body sits next
-   to the *bridge* leg that `xreserveAdapter.js` already owns.
+   to the _bridge_ leg that `xreserveAdapter.js` already owns.
 2. **`destination` is a wallet address.** The repo's recipient shape is bank/momo —
    `deriveRecipientType` (`transitionActions.js:562-568`) reads `type`, `bankCode`,
    `accountNumber`, `mobile_number`, `provider`. **There is no wallet-address field**,
@@ -65,11 +65,13 @@ Four consequences, each load-bearing for how this adapter may be described:
 
 **The genuine Flutterwave off-ramp — USDC → NGN bank payout — is a different product
 and is NOT implemented here.** It is logged as **P-7** in
-`docs/POSTPONED_BACKLOG.md**: the endpoint was not verified offline, so it is deferred
+`docs/POSTPONED_BACKLOG.md\*\*: the endpoint was not verified offline, so it is deferred
 to a future sprint rather than guessed at.
 
 This section exists to prevent a future reader from taking the word "provider" in
 this file to mean "second NGN payout provider". It does not.
+
+**Platform prerequisite (confirmed 2026-10-02):** Flutterwave's stablecoin off-ramp requires an approved F4B (Flutterwave for Business) production account with completed KYC and a created stablecoin wallet. The sandbox account used during Sprint 12 cannot access it. A direct API call with `debit_currency: "USDC"` returns `app_error` because no stablecoin wallet is provisioned for a sandbox account. This is a platform limitation, not an adapter defect. The adapter is preserved as a wire-contract tested template for when F4B approval is granted.
 
 ---
 
@@ -92,9 +94,9 @@ doc-drift claim (decision D-3 of `docs/SPRINT_FLUTTERWAVE_PLAN.md`). This mirror
 
 ## 2. Base URL
 
-| Purpose  | URL                                 | Config                  |
-| -------- | ----------------------------------- | ----------------------- |
-| Default  | `https://api.flutterwave.com/v3`    | `FLW_BASE_URL`          |
+| Purpose | URL                              | Config         |
+| ------- | -------------------------------- | -------------- |
+| Default | `https://api.flutterwave.com/v3` | `FLW_BASE_URL` |
 
 **[UNVERIFIED]** that this is the only endpoint; no docs were retrieved (§0). No
 sandbox URL is recorded in this repository.
@@ -129,16 +131,16 @@ or invented key leaks onto the wire.
 
 ### 3.2 Field mapping
 
-| Wire field     | Source                                        | Notes |
-|----------------|-----------------------------------------------|-------|
-| `account_bank` | constant `"flutterwave"`                     | Confirmed |
-| `account_number` | `FLW_MERCHANT_ID`                          | **The merchant's own id — not the recipient's.** Differs from Yellow Card, where `destination.accountNumber` is the recipient. |
-| `debit_currency` | `currency` param, else `"NGN"`             | **INVERTED vs Yellow Card** — see §3.3 |
-| `amount`       | `amount` param, **verbatim**                 | **NOT kobo** — see §3.4 |
-| `currency`     | constant `"USDC"`                            | **INVERTED vs Yellow Card** — see §3.3 |
-| `network`      | `recipient.network` else `"POLYGON"`         | See §0 consequence 3 |
-| `destination`  | `recipient.walletAddress \|\| recipient.address \|\| recipient.destination` | Wallet address; **throws** if all three absent (fail closed) |
-| `reference`    | `idempotency_key`                            | Idempotency carrier — see §3.5 |
+| Wire field       | Source                                                                      | Notes                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `account_bank`   | constant `"flutterwave"`                                                    | Confirmed                                                                                                                      |
+| `account_number` | `FLW_MERCHANT_ID`                                                           | **The merchant's own id — not the recipient's.** Differs from Yellow Card, where `destination.accountNumber` is the recipient. |
+| `debit_currency` | `currency` param, else `"NGN"`                                              | **INVERTED vs Yellow Card** — see §3.3                                                                                         |
+| `amount`         | `amount` param, **verbatim**                                                | **NOT kobo** — see §3.4                                                                                                        |
+| `currency`       | constant `"USDC"`                                                           | **INVERTED vs Yellow Card** — see §3.3                                                                                         |
+| `network`        | `recipient.network` else `"POLYGON"`                                        | See §0 consequence 3                                                                                                           |
+| `destination`    | `recipient.walletAddress \|\| recipient.address \|\| recipient.destination` | Wallet address; **throws** if all three absent (fail closed)                                                                   |
+| `reference`      | `idempotency_key`                                                           | Idempotency carrier — see §3.5                                                                                                 |
 
 `callback_url` is **accepted and ignored**. Flutterwave registers webhook targets in
 dashboard settings, not per transfer, so there is no wire field for it. The parameter
@@ -151,11 +153,11 @@ not appear in the body.
 `debit_currency`, and the wire field `currency` is the constant `"USDC"`. This is
 inverted relative to Yellow Card.**
 
-| | Yellow Card | Flutterwave |
-|---|---|---|
+|                        | Yellow Card                 | Flutterwave                                   |
+| ---------------------- | --------------------------- | --------------------------------------------- |
 | `currency` param means | what the recipient receives | **what is debited from the merchant balance** |
-| lands in wire field | `currency` | **`debit_currency`** |
-| recipient receives | `localAmount` (kobo) | `amount` + `currency: "USDC"` |
+| lands in wire field    | `currency`                  | **`debit_currency`**                          |
+| recipient receives     | `localAmount` (kobo)        | `amount` + `currency: "USDC"`                 |
 
 The pipeline calls `submitSend({ currency: 'NGN' })` (`transitionActions.js:362`).
 A literal pass-through would emit `currency: "NGN"` alongside `debit_currency: "NGN"`
@@ -190,7 +192,7 @@ external call (`upsertExternalRef` + `recordApiResponse`, `transitionActions.js:
 so a timeout after a successful provider call is recoverable rather than a
 double-payout.
 
-**What is NOT claimed:** whether Flutterwave *enforces* `reference` uniqueness. It is
+**What is NOT claimed:** whether Flutterwave _enforces_ `reference` uniqueness. It is
 a merchant-supplied string; duplicate-rejection behaviour is **[UNVERIFIED]** (§6
 item 6). The load-bearing control is the **local** durable constraint
 `idempotency_key TEXT UNIQUE NOT NULL` (`migrations/001_bos_schema.sql:43`, re-affirmed
@@ -213,13 +215,13 @@ key we sent is **logged**, not silently accepted.
 Consumers of `lookupSend` read `pending | processing | completed | failed`
 (`yellowcardAdapter.js:222-226`).
 
-| Flutterwave `status` | Canonical | Reasoning |
-|---|---|---|
-| `NEW` | `pending` | The confirmed sandbox state. **Not** `processing` — the sandbox never leaves `NEW`, and `processing` would assert forward motion that does not exist. |
-| `SUCCESSFUL` | `completed` | Only input that maps to `completed`. |
-| `FAILED` | `failed` | Terminal. |
-| `CANCELLED` / `REVERSED` | `failed` | **[UNVERIFIED]** that these states exist; mapped defensively. |
-| absent / unrecognised | `pending` | Fail-safe default; **never** `completed`. |
+| Flutterwave `status`     | Canonical   | Reasoning                                                                                                                                             |
+| ------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEW`                    | `pending`   | The confirmed sandbox state. **Not** `processing` — the sandbox never leaves `NEW`, and `processing` would assert forward motion that does not exist. |
+| `SUCCESSFUL`             | `completed` | Only input that maps to `completed`.                                                                                                                  |
+| `FAILED`                 | `failed`    | Terminal.                                                                                                                                             |
+| `CANCELLED` / `REVERSED` | `failed`    | **[UNVERIFIED]** that these states exist; mapped defensively.                                                                                         |
+| absent / unrecognised    | `pending`   | Fail-safe default; **never** `completed`.                                                                                                             |
 
 **Fail-closed guarantee:** no input path returns `completed` unless the provider
 explicitly said `SUCCESSFUL`.
@@ -230,7 +232,7 @@ Flutterwave's scheme is **not** an HMAC. There is no body digest anywhere in it.
 
 - Header: `verif-hash`.
 - Verification: **plain string comparison** against `FLW_SECRET_HASH`. The value is a
-  static shared secret — it is *not* a function of the request body.
+  static shared secret — it is _not_ a function of the request body.
 - Event: `transfer.completed`; outcome in `data.status`.
 
 This is why the repo's single canonical HMAC verifier could not be reused and a
@@ -301,7 +303,7 @@ Platform limitations and modeled assumptions. **Modeled, not proven.** Each bloc
    documentation, never from a captured live payload.
 3. **Live transfer finalization** — the sandbox transfer remained in `NEW` state.
 4. **Field semantics of `amount` / `currency` / `debit_currency`** — the
-   recipient-receives vs merchant-debited reading (§0, §3.3) is *inferred*, not
+   recipient-receives vs merchant-debited reading (§0, §3.3) is _inferred_, not
    verified.
 5. **Unit convention for `amount`** — kobo does not apply; the USDC base-unit
    convention is assumed (§3.4).
