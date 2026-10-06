@@ -63,7 +63,18 @@ None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.m
 - **Corridor configuration** — rate pairs, recipient-registry mode, gates, and circuit-breaker settings per corridor; NGN is implemented and covered by tests, KES/ZAR are configuration-proven.
 - **Two provider adapters, serving different legs** — Yellow Card serves the **NGN local payout leg** (USDCx settled on Stacks → NGN to a bank or mobile money account). Flutterwave's v3 adapter serves the **stablecoin disbursement leg** (debit NGN from the merchant account → deliver USDC to a wallet address). It is *not* an NGN payout. The two adapters are not interchangeable; they sit alongside xReserve as parallel value-movement paths. Yellow Card remains the primary NGN payout provider. Both adapters are wire-contract tested against a stubbed fetch; both are **sandbox/live UNVERIFIED**. Provider *selection* is available at the config layer via `PAYOUT_PROVIDER` (default `yellowcard`); **pipeline routing is not implemented** (backlog P-1) — the payout leg remains wired to Yellow Card. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §5 and [`docs/flutterwave-api-reference.md`](docs/flutterwave-api-reference.md) §0.
 
-## 5. Status — maturity
+## 5. Roadmap
+
+**Current:** Orchestration core, evidence chain, reconciliation layer, v1 public API, and two provider adapters (Yellow Card for NGN payouts, Flutterwave for stablecoin transfers, pending F4B production approval). Sandbox verification pending provider onboarding.
+
+**Next:** Sandbox validation for the Nigeria/NGN corridor, a second NGN provider, public SDK, external integrator example, and external developer testing.
+
+**Later:** Multi-corridor expansion (KES, GHS, ZAR), a provider registry, and the settlement receipt as a proposed Stacks standard.
+
+See [`docs/MULTI_CORRIDOR_PLAN.md`](docs/MULTI_CORRIDOR_PLAN.md) for the corridor roadmap, [`docs/SHOVEL_AND_PICKS.md`](docs/SHOVEL_AND_PICKS.md) for the long-term frame, and [`docs/POSTPONED_BACKLOG.md`](docs/POSTPONED_BACKLOG.md) for deferred work.
+
+
+## 6. Status — maturity
 
 > **Maturity: Prototype — sandbox-ready interfaces.**
 
@@ -75,7 +86,7 @@ None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.m
 > layer. **Do not use Payout Rail to move real funds or handle real beneficiary
 > data.**
 
-## 6. Claims and evidence
+## 7. Claims and evidence
 
 Consolidated from [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for external readers.
 Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKED / PLANNED / UNVERIFIED / KNOWN GAP**.
@@ -93,6 +104,7 @@ Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKE
 | Stacks adapter (burn + attestation observation)                                                                                                      | IMPLEMENTED + TESTED (mocked)                             | adapter + unit tests; **no live/sandbox evidence**                                                                                                                                            |
 | xReserve adapter (USDC bridge, release observation)                                                                                                  | MODEL CORRECTED (G-08) / UNVERIFIED EXTERNAL              | observation surface is a fail-closed stub; no credentials                                                                                                                                     |
 | Yellow Card adapter (Sends API, `YcHmacV1` auth)                                                                                                     | IMPLEMENTED + TESTED (wire-level vs documented reference) | `yellowcard-api-reference.md`; 28 wire-contract tests pass; **live/sandbox UNVERIFIED (no credentials — G-20)**                                                                               |
+| Flutterwave adapter (v3 stablecoin transfer, wire-level) | IMPLEMENTED + TESTED (wire-level) / off-ramp UNVERIFIED | `flutterwaveAdapter.js`; 22 wire-contract + 24 webhook + 8 config tests; off-ramp blocked by F4B production-account prerequisite (`docs/flutterwave-api-reference.md` §0) |
 | Provider live/sandbox verification (any adapter)                                                                                                     | UNVERIFIED                                                | no credentials exist in this environment                                                                                                                                                      |
 | Adoption by an external Stacks application                                                                                                           | PLANNED                                                   | examples/external-integrator/ (reference template; no external adopter yet)                                                                                                                   |
 | Mainnet readiness                                                                                                                                    | PLANNED / OUT OF SCOPE                                    | strategy: mainnet out of scope for the grant                                                                                                                                                  |
@@ -100,7 +112,7 @@ Classification key: **IMPLEMENTED / TESTED / VERIFIED / SANDBOX VERIFIED / MOCKE
 
 See [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for the full register with per-row evidence, and [`docs/GAP_REGISTER.md`](docs/GAP_REGISTER.md) for the open gaps.
 
-## 7. What it does NOT do
+## 8. What it does NOT do
 
 - Not a bridge, exchange, custodian, fiat payment processor, or creative-financing product.
 - Not a live production system — **not mainnet**.
@@ -110,7 +122,7 @@ See [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) for the full register w
 
 Grounding: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §"Not in the system".
 
-## 8. Quick start
+## 9. Quick start
 
 ```bash
 npm ci
@@ -122,11 +134,11 @@ npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without crede
 - Default mode drives the real v1 router and pipeline to `settled` with an empty receipt `gaps` array — success is never fabricated.
 - Output goes to `demo-output/receipt-<id>.json` (gitignored). Pass `--output-dir <dir>` to relocate it.
 
-## 9. Test status
+## 10. Test status
 
 243 tests, 242 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters and a stubbed `fetch` — zero infrastructure.
 
-## 10. Environment reference
+## 11. Environment reference
 
 All values below are read from the environment (`.env`); tokens are environment-only, never in code or the repository. See `.env.example`.
 
@@ -145,7 +157,7 @@ All values below are read from the environment (`.env`); tokens are environment-
 
 Poll variables (`BOS_POLL_INTERVAL_MS` / `BOS_MAX_POLL_ATTEMPTS`) were removed in Sprint 1.5 and do not exist. The dev auth backdoor (`BOS_ALLOW_UNAUTHENTICATED_DEV`) was removed in Sprint 3 and does not exist.
 
-## 11. Documentation
+## 12. Documentation
 
 | Doc                                                                    | What it covers                                                                                         |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -158,10 +170,12 @@ Poll variables (`BOS_POLL_INTERVAL_MS` / `BOS_MAX_POLL_ATTEMPTS`) were removed i
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md)                   | Every claim, classified, with its evidence                                                             |
 | [`docs/GAP_REGISTER.md`](docs/GAP_REGISTER.md)                         | Open gaps and their fix direction                                                                      |
 | [`docs/POSTPONED_BACKLOG.md`](docs/POSTPONED_BACKLOG.md)               | Deferred work and classified out-of-scope items                                                        |
+| [`docs/SHOVEL_AND_PICKS.md`](docs/SHOVEL_AND_PICKS.md)                 | The five-layer strategic frame and the four "steam shovel" features                                    |
+| [`docs/MULTI_CORRIDOR_PLAN.md`](docs/MULTI_CORRIDOR_PLAN.md)           | The corridor roadmap, provider landscape, and P-1 dependency                                           |
 | [`docs/yellowcard-api-reference.md`](docs/yellowcard-api-reference.md) | The Yellow Card Sends reference the wire-contract tests compile against                                |
 
 Provenance: Payout Rail's orchestration layer originated in the CineX project and was extracted into an independent repository. The extraction-time record is archived in [`docs/EXTRACTION_REPORT.md`](docs/EXTRACTION_REPORT.md) (historical). CineX remains a separate product; Payout Rail is maintained independently. Sprint plans and reports under `docs/` are historical records and are not references to current behavior.
 
-## 12. License
+## 13. License
 
 MIT. Payout Rail's orchestration layer originated in the CineX project and is maintained independently (provenance and attribution in [`ATTRIBUTION.md`](ATTRIBUTION.md)). Contributions: see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for scope and process.
