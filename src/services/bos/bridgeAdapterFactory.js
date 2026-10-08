@@ -10,6 +10,7 @@
 import * as xreserveAdapter from './xreserveAdapter.js';
 import * as yellowcardAdapter from './yellowcardAdapter.js';
 import * as flutterwaveAdapter from './flutterwaveAdapter.js';
+import * as breetAdapter from './breetAdapter.js';
 import * as StacksAdapter from './StacksAdapter.js';
 
 const ADAPTER_ENV = process.env.BRIDGE_ADAPTER_ENV || 'xreserve';
@@ -69,6 +70,10 @@ export function getFlutterwaveAdapter() {
   return flutterwaveAdapter;
 }
 
+export function getBreetAdapter() {
+  return breetAdapter;
+}
+
 /**
  * Payout provider selection — CONFIG LAYER ONLY.
  *
@@ -95,7 +100,10 @@ export function getPayoutProvider() {
  * @returns {Object} the adapter for getPayoutProvider()
  */
 export function getPayoutAdapter() {
-  return getPayoutProvider() === 'flutterwave' ? flutterwaveAdapter : yellowcardAdapter;
+  const p = getPayoutProvider();
+  if (p === 'flutterwave') return flutterwaveAdapter;
+  if (p === 'breet') return breetAdapter;
+  return yellowcardAdapter;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,6 +144,7 @@ export default {
   getStacksAdapter,
   getYellowCardAdapter,
   getFlutterwaveAdapter,
+  getBreetAdapter,
   getPayoutProvider,
   getPayoutAdapter,
 };
