@@ -6,7 +6,7 @@ import webhooksRouter from './routes/webhooks.js';
 import disbursementsRouter from './routes/disbursements.js';
 import disbursementsV1Router from './routes/disbursementsV1.js';
 import { initDb, getDb } from './database.js';
-import { getXReserveAdapter, getStacksAdapter, getYellowCardAdapter, getFlutterwaveAdapter } from './services/bos/bridgeAdapterFactory.js';
+import { getXReserveAdapter, getStacksAdapter, getYellowCardAdapter, getFlutterwaveAdapter, getBreetAdapter } from './services/bos/bridgeAdapterFactory.js';
 import monitorJob from './services/bos/monitoring/monitorJob.js';
 import * as stuckReaper from './services/bos/stuckStateReaper.js';
 import * as reconciliationWorker from './services/bos/reconciliationWorker.js';
@@ -44,8 +44,8 @@ async function ensureInit() {
     // P-1. And its documented body is a USDC-to-wallet disbursement, not an NGN
     // bank payout: see flutterwaveAdapter.js and
     // docs/flutterwave-api-reference.md §0.
-    yellowcard: getYellowCardAdapter(),
-    flutterwave: getFlutterwaveAdapter(),
+        yellowcard: getYellowCardAdapter(),
+    breet: getBreetAdapter(),
   };
 
   const recipientRegistry = createRecipientRegistry(process.env.BOS_RECIPIENT_REGISTRY);
