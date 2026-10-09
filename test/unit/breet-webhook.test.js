@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, describe } from "node:test";
 import assert from 'node:assert/strict';
 import {
   verifyBreetWebhook,
@@ -42,6 +42,8 @@ describe('Breet webhook verification', () => {
   });
 
   test("verifyWebhook still dispatches 'yellowcard' and 'flutterwave' (regression guard)", () => {
+    delete process.env.BREET_WEBHOOK_SECRET;
+    delete process.env.XRESERVE_WEBHOOK_SECRET;
     process.env.YELLOWCARD_WEBHOOK_SECRET = 'yc';
     process.env.FLW_SECRET_HASH = 'fw';
     let res = verifyWebhook('yellowcard', '{}', { 'x-yellowcard-signature': 'yc' });
@@ -50,3 +52,4 @@ describe('Breet webhook verification', () => {
     assert.equal(res.valid, true);
   });
 });
+
