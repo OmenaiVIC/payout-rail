@@ -7,7 +7,7 @@
 ## 1. The adapter interface
 
 Every external provider integration in Payout Rail is a small ES module under
-`src/services/bos/*Adapter.js` (Stacks, xReserve, Yellow Card, Flutterwave; plus
+`src/services/bos/*Adapter.js` (Stacks, xReserve, Yellow Card, Flutterwave, Breet; plus
 the unit-test `mock` factory). The pipeline never calls provider SDKs,
 cryptocurrencies or HTTP clients directly — it calls adapter functions. The
 contract an adapter must satisfy:
@@ -15,8 +15,9 @@ contract an adapter must satisfy:
 1. **Methods** — one function per external operation the pipeline needs
    (e.g. `submitSend`, `getPayoutStatus`, `observeDestinationRelease`). Adapters are
    stateless: all inputs arrive as function parameters, all outputs are plain JSON.
-2. **Error classification** — every adapter returns errors through
-   `classifyError(error)` (`yellowcardAdapter.js:36`), which tags each failure
+2. **Error classification** — every adapter returns errors through its own
+   `classifyError(error)` (one per adapter; e.g. `yellowcardAdapter.js:36`,
+   `breetAdapter.js:47`), which tags each failure
    `permanent` (non-transient: wrong credentials, rejected payload, invalid state)
    or `transient` (network timeout, 5xx, rate limit). The pipeline treats
    `permanent` as terminal-worthy (route to `failed` / `manual_review`) and
@@ -139,6 +140,45 @@ contract an adapter must satisfy:
   Completing it is backlog **P-4**; it is the weakest reference doc in the repo and
   narrower than `yellowcard-api-reference.md`.
 
+### Breet — NGN local-fiat payout (third provider)
+
+- **Surface:** `src/services/bos/breetAdapter.js` — implemented, wire-contract tested.
+  Bank-ID mapping lives in `config/breet-banks.json` (NIBSS-to-Breet-ID).
+- **Status (claims table):** IMPLEMENTED + TESTED (wire-level) — **sandbox/live UNVERIFIED**.
+  No credentials in this environment.
+- **Environment contract:** the adapter reads `BREET_*` environment variables at
+  **call time**, not at module load. The accessor functions (`envBaseUrl()`,
+  `envAppId()`, `envAppSecret()`, `envWebhookSecret()`, `envEnv()`,
+  `envWithdrawalPin()`, `envMerchantRef()`) resolve `process.env` on each call.
+  This matters for tests and for any host that populates `process.env` after import.
+- **Error classification:** `classifyError` maps `AbortError` and any error whose
+  message contains `fetch` to `transient`, 429 / 5xx to `transient`, other 4xx to
+  `permanent`, and anything else to `unknown`. The fetch check matches on the
+  message alone (not on `error.name === 'TypeError'`), so a plain
+  `new Error('fetch failed')` classifies as `transient`.
+- **Webhook verification:** **DEFERRED.** Breet has **no** verifier branch and
+  **no** route today. A prior attempt to add a Breet webhook verifier broke the
+  existing Flutterwave and Yellow Card webhook routes and was reverted. A future
+  focused sprint must add it as **isolated, additive code only** — no modification
+  to existing functions or routes in `webhooks.js` or `webhookVerifier.js`.
+  The canonical `verifyWebhook` dispatcher continues to serve
+  `yellowcard`, `flutterwave`, and `xreserve` unchanged.
+- **Repairs (2026-10-09):** the Sprint 13 commit `3903653` ("feat: add Breet
+  webhook verification, route, env vars, tests, and sprint report") introduced
+  three regressions, all repaired in a follow-up commit:
+  1. `src/routes/webhooks.js` imported a nonexistent `webhookHandlers.js`; the
+     import was restored to `disbursementService.js`, which is where
+     `handleYellowCardWebhook` and `handleFlutterwaveWebhook` actually live.
+  2. `src/services/bos/breetAdapter.js` captured `BREET_*` env at module load,
+     so tests that set env after import saw stale values; the adapter now reads
+     env at call time (see Environment contract above).
+  3. `test/unit/breet-webhook.test.js` asserted that Yellow Card uses a plain
+     shared-secret signature, which is false — Yellow Card signs an HMAC over
+     the body. The regression guard now asserts dispatcher routing only.
+  Post-repair suite: 259 tests, 258 pass, 0 fail, 1 skip.
+- **Docs:** the reference docs for this adapter are `docs/breet-api-reference.md`,
+  `docs/SPRINT_BREET_REPORT.md`, and `docs/MULTI_CORRIDOR_PLAN.md` (updated with Breet).
+
 ## 3. What is UNVERIFIED and why
 
 There are **no provider credentials in this environment**, so **no adapter has
@@ -151,6 +191,7 @@ match the provider's published reference; it cannot prove the provider accepts t
 | xReserve | Attestation (burn tx is trigger) + destination-release observation | Release model corrected (G-08); `observeDestinationRelease` fail-closed stub (`xreserveAdapter.js:217-238`) | None — external settlement surface UNVERIFIED | No credentials / sandbox access; surface returns `xreserve.unverified` by design |
 | Yellow Card | Sends submit / payout-status / lookup / webhook; `YcHmacV1` auth | `yellowcardAdapter.js`; 28 wire-contract tests; `docs/yellowcard-api-reference.md` | None — live/sandbox UNVERIFIED | No credentials (G-20); field precision (kobo vs decimal, `networkId`) unproven live |
 | **Flutterwave** | **v3 Transfers submit / lookup / health; `verif-hash` webhook. USDC→wallet, NOT an NGN payout** | `flutterwaveAdapter.js`; 22 wire-contract + 24 webhook tests; `docs/flutterwave-api-reference.md` (stub) | **None — live/sandbox UNVERIFIED** | No credentials; reference doc is a prompt-derived stub (P-4); field semantics inferred (recipient-receives vs merchant-debited); `GET /v3/balances` unconfirmed; `verif-hash` has no integrity or replay protection |
+| **Breet** | **NGN local-fiat payout adapter; wire-contract tested. Webhook verifier DEFERRED** | `src/services/bos/breetAdapter.js`; `config/breet-banks.json`; 8 wire-contract + 2 provider-config tests | **None — live/sandbox UNVERIFIED** | No credentials; webhook verifier abandoned after breaking existing Flutterwave/Yellow Card routes — must be re-attempted as isolated, additive-only code |
 
 Any adapter movement to SANDBOX-VERIFIED requires credentials, a repeatable
 auth → submit → status → webhook loop (G-20), and a claim update in
