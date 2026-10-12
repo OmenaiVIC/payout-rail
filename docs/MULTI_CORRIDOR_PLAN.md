@@ -22,8 +22,7 @@ Payout Rail is a provider-agnostic orchestration layer that connects Stacks sett
 
 
 
-The orchestration core — 15-state machine, evidence chain, reconciliation layer, v1 public API — is complete and covered by 243 tests. The adapter interface is proven by a second implementation (Flutterwave), even though that second adapter does not yet serve a live corridor.
-
+The orchestration core — 15-state machine, evidence chain, reconciliation layer, v1 public API — is complete and covered by 259 tests. The adapter interface is proven by three implementations (Yellow Card, Flutterwave, Breet), though Flutterwave does not yet serve a live corridor and Breet's webhook verifier is deferred.
 
 
 The layer is ready to add corridors. The corridors themselves are not yet added.
