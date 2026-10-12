@@ -65,7 +65,7 @@ Four consequences, each load-bearing for how this adapter may be described:
 
 **The genuine Flutterwave off-ramp — USDC → NGN bank payout — is a different product
 and is NOT implemented here.** It is logged as **P-7** in
-`docs/POSTPONED_BACKLOG.md\*\*: the endpoint was not verified offline, so it is deferred
+`docs/POSTPONED_BACKLOG.md`: the endpoint was not verified offline, so it is deferred
 to a future sprint rather than guessed at.
 
 This section exists to prevent a future reader from taking the word "provider" in

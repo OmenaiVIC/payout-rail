@@ -1,4 +1,4 @@
-\# COMMERCIAL_HYPOTHESIS
+# COMMERCIAL_HYPOTHESIS
 
 Status: Working hypothesis. Not validated. Not a business plan.
 
@@ -8,9 +8,9 @@ Created: 2026-09-21.
 
 > This document is a hypothesis, not a claim. Nothing here is verified. It exists so that the technical work has a commercial north star, and so that Sprint 9 (docs/prompts/11_SPRINT_9_COMMERCIAL_MODEL.md, currently STUB) has raw material to formalize once the technical evidence base exists
 
-\---
+---
 
-\## 1. The Blue Ocean Framing
+## 1. The Blue Ocean Framing
 
 The current landscape for crypto-to-fiat payouts splits into three camps:
 
@@ -24,105 +24,105 @@ The current landscape for crypto-to-fiat payouts splits into three camps:
 
 | Direct provider integrations | Yellow Card, Flutterwave direct | Each app rebuilds the same orchestration |
 
-\*\*The gap:\*\* there is no open, reusable \*\*orchestration layer\*\* that sits between a Stacks application's settlement and a local payout provider. Every team rebuilds the same state machine, the same retries, the same evidence trail.
+**The gap:** there is no open, reusable **orchestration layer** that sits between a Stacks application's settlement and a local payout provider. Every team rebuilds the same state machine, the same retries, the same evidence trail.
 
-\*\*The blue ocean move:\*\* define and own the \*orchestration category\* for Stacks → Global South payouts, open-sourced, with a hosted commercial tier.
+**The blue ocean move:** define and own the \*orchestration category\* for Stacks → Global South payouts, open-sourced, with a hosted commercial tier.
 
-\---
+---
 
-\## 2. Problem Statement (Draft)
+## 2. Problem Statement (Draft)
 
 Stacks applications that need to pay recipients in local currencies face:
 
-\- No standard way to connect USDCx settlement to local payout rails
+- No standard way to connect USDCx settlement to local payout rails
 
-\- No reusable state machine for the payout lifecycle
+- No reusable state machine for the payout lifecycle
 
-\- No audit trail that satisfies compliance reviewers
+- No audit trail that satisfies compliance reviewers
 
-\- No provider-agnostic abstraction (each provider is integrated from scratch)
+- No provider-agnostic abstraction (each provider is integrated from scratch)
 
-\- No open-source reference implementation they can trust
+- No open-source reference implementation they can trust
 
 Result: every Stacks application either builds this from zero, or does not build it at all and stays in crypto-only flows.
 
-\---
+---
 
-\## 3. Target Customer Segments (Hypothesis)
+## 3. Target Customer Segments (Hypothesis)
 
 Ordered by likelihood of adoption:
 
-1\. \*\*Stacks applications with real payout needs\*\* — grants platforms, freelancer payment tools, DAO contributor payouts, gaming economies
+1\. **Stacks applications with real payout needs** — grants platforms, freelancer payment tools, DAO contributor payouts, gaming economies
 
-2\. \*\*Stacks protocols\*\* that want to offer fiat off-ramps as a feature
+2\. **Stacks protocols** that want to offer fiat off-ramps as a feature
 
-3\. \*\*Exchanges and custodians\*\* serving African and Global South markets
+3\. **Exchanges and custodians** serving African and Global South markets
 
-4\. \*\*NGOs and aid organizations\*\* experimenting with crypto rails
+4\. **NGOs and aid organizations** experimenting with crypto rails
 
-5\. \*\*Other chains\*\* (later) that want to reuse the orchestration pattern
+5\. **Other chains** (later) that want to reuse the orchestration pattern
 
-\---
+---
 
-\## 4. Corridor Strategy
+## 4. Corridor Strategy
 
-\### Primary validation corridor
+### Primary validation corridor
 
-\- \*\*Nigeria / NGN\*\* — Yellow Card integration, sandbox or mock mode
+- **Nigeria / NGN** — Yellow Card integration, sandbox or mock mode
 
-\### Demo-mode corridors (Sprint 6)
+### Demo-mode corridors (Sprint 6)
 
-\- \*\*Kenya / KES\*\* — configuration-proven, sandbox verification pending
+- **Kenya / KES** — configuration-proven, sandbox verification pending
 
-\- \*\*South Africa / ZAR\*\* — configuration-proven, sandbox verification pending
+- **South Africa / ZAR** — configuration-proven, sandbox verification pending
 
-\### Rationale
+### Rationale
 
 Multi-corridor proves the corridor-abstraction is real, not hypothetical. However, only NGN will have actual provider evidence in this phase. KES and ZAR will demonstrate that the adapter/config pattern works, but will be explicitly labelled as "configuration-ready, sandbox-verification-pending."
 
-\### Future corridors
+### Future corridors
 
 Additional Yellow Card markets and other Global South corridors, subject to provider coverage and grant funding.
 
-\---
+---
 
-\## 5. The ILP Hypothesis (Long-Term Routing Vision)
+## 5. The ILP Hypothesis (Long-Term Routing Vision)
 
-\### What ILP Is
+### What ILP Is
 
 The Interledger Protocol (ILP) is an open, currency-agnostic routing and clearing protocol. It connects disparate ledgers — banks, blockchains, mobile money, CBDCs — without requiring participants to share the same ledger \[citation:1]\[citation:14].
 
-\### What ILP Is Not
+### What ILP Is Not
 
-\*\*ILP does not natively settle value.\*\* The Interledger Foundation explicitly states that nodes must reconcile balances through pre-funded accounts or bilateral arrangements \[citation:1]. ILP routes payment \*instructions\*, not money.
+**ILP does not natively settle value.** The Interledger Foundation explicitly states that nodes must reconcile balances through pre-funded accounts or bilateral arrangements \[citation:1]. ILP routes payment \*instructions\*, not money.
 
-\### The Opportunity for Payout Rail
+### The Opportunity for Payout Rail
 
-In the long term, ILP could become the \*\*routing layer\*\* that sits above individual payout providers. Instead of hardcoding Yellow Card, Payout Rail could route payment instructions through ILP connectors to whichever provider offers the best rate and reliability for a given corridor.
+In the long term, ILP could become the **routing layer** that sits above individual payout providers. Instead of hardcoding Yellow Card, Payout Rail could route payment instructions through ILP connectors to whichever provider offers the best rate and reliability for a given corridor.
 
-This would make Payout Rail a \*\*corridor-agnostic orchestration layer\*\* rather than a Yellow Card-specific integration.
+This would make Payout Rail a **corridor-agnostic orchestration layer** rather than a Yellow Card-specific integration.
 
-\### What Is Required for This to Work
+### What Is Required for This to Work
 
-1\. \*\*ILP connectors with local liquidity\*\* in target corridors (KES, ZAR, NGN)
+1\. **ILP connectors with local liquidity** in target corridors (KES, ZAR, NGN)
 
-2\. \*\*Mojaloop or equivalent infrastructure\*\* with production-grade connector availability \[citation:14]
+2\. **Mojaloop or equivalent infrastructure** with production-grade connector availability \[citation:14]
 
-3\. \*\*Payout Rail adapters\*\* that can speak ILP alongside native provider APIs
+3\. **Payout Rail adapters** that can speak ILP alongside native provider APIs
 
-\### Current Reality
+### Current Reality
 
 No production-grade ILP connectors for KES or ZAR payouts have been identified. Mojaloop uses ILP in Africa, but its connector network for direct Stacks-to-fiat payouts is not established.
 
-\### Conclusion
+### Conclusion
 
-ILP is a \*\*roadmap item\*\*, not an MVP component. Yellow Card remains the last-mile provider for this phase. ILP should be documented as the long-term routing architecture that makes Payout Rail provider-agnostic.
+ILP is a **roadmap item**, not an MVP component. Yellow Card remains the last-mile provider for this phase. ILP should be documented as the long-term routing architecture that makes Payout Rail provider-agnostic.
 
-\*\*Grant narrative:\*\* "Payout Rail is designed with an ILP-ready adapter layer, enabling future routing through Interledger connectors as they become available in target corridors."
+**Grant narrative:** "Payout Rail is designed with an ILP-ready adapter layer, enabling future routing through Interledger connectors as they become available in target corridors."
 
-\---
+---
 
-\## 6. Revenue Mechanisms (Hypothesis — not validated)
+## 6. Revenue Mechanisms (Hypothesis — not validated)
 
 Candidate models, to be tested:
 
@@ -140,11 +140,11 @@ Candidate models, to be tested:
 
 | Protocol fee share | If Payout Rail becomes standard on Stacks | Scalable | Requires ecosystem adoption |
 
-\*\*Working hypothesis:\*\* start with grants → transition to managed hosting + per-payout fee as volume appears.
+**Working hypothesis:** start with grants → transition to managed hosting + per-payout fee as volume appears.
 
-\---
+---
 
-\## 7. Unit Economics (Placeholder — needs real numbers)
+## 7. Unit Economics (Placeholder — needs real numbers)
 
 | Cost | Amount | Notes |
 
@@ -160,45 +160,45 @@ Candidate models, to be tested:
 
 | Support cost per customer | TBD | Post-launch |
 
-\*\*Take rate must exceed provider fee + FX spread + infra cost + support cost.\*\* None of these are known yet. Do not publish a take rate until they are.
+**Take rate must exceed provider fee + FX spread + infra cost + support cost.** None of these are known yet. Do not publish a take rate until they are.
 
-\---
+---
 
-\## 8. Competitive Differentiation
+## 8. Competitive Differentiation
 
 If everything in Payout Rail is open source, what defends the business?
 
 Candidate answers (unvalidated):
 
-\- \*\*Operational excellence\*\* — the hosted version is simply better run than self-hosted
+- **Operational excellence** — the hosted version is simply better run than self-hosted
 
-\- \*\*Compliance posture\*\* — audit-grade evidence trail is hard to replicate
+- **Compliance posture** — audit-grade evidence trail is hard to replicate
 
-\- \*\*Corridor depth\*\* — first mover on specific Global South corridors
+- **Corridor depth** — first mover on specific Global South corridors
 
-\- \*\*Ecosystem trust\*\* — being the default in the Stacks community
+- **Ecosystem trust** — being the default in the Stacks community
 
-\- \*\*Support quality\*\* — enterprise customers pay for SLAs, not code
+- **Support quality** — enterprise customers pay for SLAs, not code
 
-\- \*\*ILP-ready architecture\*\* — future-proofed against provider lock-in
+- **ILP-ready architecture** — future-proofed against provider lock-in
 
-\*\*Open question:\*\* is there a proprietary component (e.g., advanced reconciliation, ML-based fraud detection, provider negotiation) that stays closed-source while the core stays open?
+**Open question:** is there a proprietary component (e.g., advanced reconciliation, ML-based fraud detection, provider negotiation) that stays closed-source while the core stays open?
 
-\---
+---
 
-\## 9. The Grant-to-Revenue Bridge
+## 9. The Grant-to-Revenue Bridge
 
 The realistic path over 18–24 months:
 
-1\. \*\*Months 0–6:\*\* Build and open-source Payout Rail. Apply for Stacks ecosystem grants. Prove technical thesis.
+1\. **Months 0–6:** Build and open-source Payout Rail. Apply for Stacks ecosystem grants. Prove technical thesis.
 
-2\. \*\*Months 6–12:\*\* Land 2–3 design partners. Run sandbox pilots. Gather real usage data. Publish evidence.
+2\. **Months 6–12:** Land 2–3 design partners. Run sandbox pilots. Gather real usage data. Publish evidence.
 
-3\. \*\*Months 12–18:\*\* Launch managed hosting tier. Onboard first paying customers. Establish corridor depth in NGN + 2 others.
+3\. **Months 12–18:** Launch managed hosting tier. Onboard first paying customers. Establish corridor depth in NGN + 2 others.
 
-4\. \*\*Months 18–24:\*\* Expand corridors. Hire first ops/support. Prove unit economics.
+4\. **Months 18–24:** Expand corridors. Hire first ops/support. Prove unit economics.
 
-\---
+---
 
 ## 10. Naming Decision (Pending — Do Not Finalize)
 
@@ -243,60 +243,60 @@ The realistic path over 18–24 months:
 - Do not invest in branding, domains, or marketing under any unverified name.
 - Do not assume a name is available because it does not appear in a quick online search [citation:3].
 
-\## 11. Open Questions Requiring Validation
+## 11. Open Questions Requiring Validation
 
 These must be answered before a business plan is credible:
 
-\- Do Stacks applications actually want this, or do they solve it themselves?
+- Do Stacks applications actually want this, or do they solve it themselves?
 
-\- Is Yellow Card the right long-term provider, or is multi-provider abstraction essential from day one?
+- Is Yellow Card the right long-term provider, or is multi-provider abstraction essential from day one?
 
-\- \*\*Do production-grade ILP connectors exist for KES, ZAR, or NGN payouts?\*\* If yes, when?
+- **Do production-grade ILP connectors exist for KES, ZAR, or NGN payouts?** If yes, when?
 
-\- Is "open-source core + paid hosting" the right model, or is a proprietary product more defensible?
+- Is "open-source core + paid hosting" the right model, or is a proprietary product more defensible?
 
-\- How does this compare to Circle's own payout roadmap for USDC?
+- How does this compare to Circle's own payout roadmap for USDC?
 
-\- What is the actual regulatory exposure in each corridor?
+- What is the actual regulatory exposure in each corridor?
 
-\- Is Stacks the right wedge, or should Payout Rail be chain-agnostic from day one?
+- Is Stacks the right wedge, or should Payout Rail be chain-agnostic from day one?
 
-\- Would CineX itself pay for this? (Dogfooding test)
+- Would CineX itself pay for this? (Dogfooding test)
 
-\---
+---
 
-\## 12. Relationship to Sprint 8 (Grant Readiness)
+## 12. Relationship to Sprint 8 (Grant Readiness)
 
 Sprint 8 produces the technical evidence package. This document is the commercial counterpart. Sprint 9 (not yet created) will formalize the commercial model using both.
 
 For grant applications:
 
-\- Lead with technical evidence (Sprint 8 output)
+- Lead with technical evidence (Sprint 8 output)
 
-\- Support with commercial hypothesis (this document, formalized)
+- Support with commercial hypothesis (this document, formalized)
 
-\- Never claim revenue that has not been earned
+- Never claim revenue that has not been earned
 
-\- Frame grants as enabling the bridge from proof to sustainability
+- Frame grants as enabling the bridge from proof to sustainability
 
-\- \*\*ILP narrative:\*\* position as future-proofing against provider lock-in
+- **ILP narrative:** position as future-proofing against provider lock-in
 
-\---
+---
 
-\## 13. Change Control
+## 13. Change Control
 
 Any change to the commercial hypothesis goes through `docs/PRODUCT\_CHANGE\_CONTROL.md`. This document is a hypothesis; changes are expected. But each change must be recorded, not silently overwritten.
 
-\---
+---
 
-\## Related Documents
+## Related Documents
 
-\- `docs/PRODUCT\_CHANGE\_CONTROL.md`
+- `docs/PRODUCT\_CHANGE\_CONTROL.md`
 
-\- `docs/CLAIMS\_REGISTER.md` (created in Prompt 0)
+- `docs/CLAIMS\_REGISTER.md` (created in Prompt 0)
 
-\- `docs/PRODUCT\_BASELINE.md` (created in Prompt 0)
+- `docs/PRODUCT\_BASELINE.md` (created in Prompt 0)
 
-\- Sprint 8 output: capability matrix, evidence register
+- Sprint 8 output: capability matrix, evidence register
 
 \ Sprint 9: - `docs/prompts/11_SPRINT_9_COMMERCIAL_MODEL.md`
