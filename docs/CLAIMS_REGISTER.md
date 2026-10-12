@@ -16,6 +16,11 @@
 > claim section contains any `UNVERIFIED` entry, the enclosing adapter claim is
 > `IMPLEMENTED + TESTED (wire-level; external UNVERIFIED)`. See
 > `docs/SPRINT_FLUTTERWAVE_REPORT.md`.
+>
+> **Sprint 13 (Breet):** Sprint 13 added a Breet adapter; its provider claims live in §5.2.
+> Breet's webhook verifier is **deferred**. The Sprint 13 commit (`3903653`) introduced three
+> regressions that were repaired in `9f7bd7d`; the repair record is in
+> `docs/PROVIDER_ADAPTERS.md` §2.
 
 ---
 
@@ -119,6 +124,26 @@ the primary NGN payout provider. `debit_currency = currency` (parameter), `curre
 | Fee per transfer ($0.24) | — | Dropped as unverifiable | NOT CLAIMED |
 | Reference source | `docs/flutterwave-api-reference.md` | Written from sprint prompt only; no docs fetched, no network | UNVERIFIED SOURCE (P-4) |
 
+### 5.2 Breet provider claims
+
+**The scope of the Breet addition is an NGN local-fiat off-ramp, not a webhook.** The
+Sprint 13 adapter is wire-contract tested; the webhook verifier is deferred to a
+focused sprint that must add it as isolated, additive code. The Sprint 13 commit
+(`3903653`) introduced three regressions — a phantom `webhookHandlers.js` import, an
+env-capture bug in the adapter, and a test asserting the wrong signature scheme for
+Yellow Card — all repaired in `9f7bd7d`.
+
+| Claim | Wire basis | Evidence | Status |
+|---|---|---|---|
+| Breet adapter surface (add bank, withdraw, lookup, health) | `breetAdapter.js` | 8 wire-contract tests lock the two-step off-ramp flow (`POST /payments/banks/add`, `POST /payments/withdraw/bank/{id}`, `GET /payments/withdrawal/{id}`); bank-ID mapping in `config/breet-banks.json` | IMPLEMENTED + TESTED (wire-level) |
+| Call-time env reads (`BREET_*`) | `breetAdapter.js` accessor functions | Adapter resolves `process.env` on each call via seven `env*()` accessors, not at module load | IMPLEMENTED + TESTED |
+| `classifyError` taxonomy | `breetAdapter.js:47` | `AbortError` / message-contains-`fetch` / 429 / 5xx → `transient`; other 4xx → `permanent`; else `unknown` | IMPLEMENTED + TESTED |
+| Breet webhook verifier | — | **No verifier branch, no route.** A prior attempt broke the Flutterwave and Yellow Card webhook routes and was reverted; `verifyWebhook` continues to serve `yellowcard`, `flutterwave`, `xreserve` unchanged | DEFERRED (requires isolated-additive-only sprint) |
+| Breet routed from the pipeline | `bridgeAdapterFactory.js`, `src/index.js` | `PAYOUT_PROVIDER` publishes the adapter at the config layer only; the payout leg remains hard-wired to `ctx.adapters.yellowcard` | NOT ROUTED (P-1) |
+| Live/sandbox verification | — | **No credentials**; no provider call made | UNVERIFIED (external) |
+| Reference source | `docs/breet-api-reference.md` | Exists (Sprint 13) | UNVERIFIED SOURCE (like Flutterwave, P-4) |
+
+
 ## 6. Claims register summary
 
 - **IMPLEMENTED:** lifecycle scaffolding, adapters (as described), workers, monitoring, gates/2PA/breaker classes, DB + migrations, webhook route, evidence writes. Sprint 4 closed G-16/G-17: **all six recorders live** (webhook, poll, manual-note, api, tx-hash, gate) plus the canonical `transition` record per successful transition and the `reconciliation_detection` type (4b writer); the four write-dead tables are wired and the two dead tables dropped (see `docs/PRODUCT_BASELINE.md`, `docs/GAP_REGISTER.md`).
@@ -126,5 +151,5 @@ the primary NGN payout provider. `debit_currency = currency` (parameter), `curre
 - **DEAD (Sprint 7 re-audit):** `fallbackPoller` — **removed** in Sprint 1.5 (G-14), no longer in the tree. `auditTimeline` — ESM-converted in Sprint 1.5, imports cleanly, but is still **not imported by the app** (referenced only by its own unit test); treated as leftover pending wiring. `webhookVerifier` — **no longer dead**: wired live at `webhooks.js:15` and `yellowcardAdapter.js:22`.
 - **SIMULATED:** xReserve attestation (Hiro proxy); xReserve destination-release **observation surface**
   (records exactly what it is told; the fabricated no-op was removed in Sprint 2); mock adapters.
-- **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint. **Flutterwave (Sprint 12)** is `IMPLEMENTED + TESTED` (wire-level) with external `UNVERIFIED`; its reference doc source is itself UNVERIFIED (P-4) — see §5.1.
-- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; manual-review resolution API; disbursement create/approve/recover API; tests. (Sprint 4 wired `manual_review_queue` enqueue + resolution-on-terminal, but the operator resolution API stays Sprint 5.) **Sprint 12 backlog:** full corridor provider routing (P-1) — the Flutterwave handler verifies but does not advance; UNVERIFIED-list maintenance for new Sprint 12 endpoint claims is in `docs/SPRINT_FLUTTERWAVE_REPORT.md`. Flutterwave sandbox/live verification is gated on credentials (G-20) and remains `UNVERIFIED`.
+- **UNVERIFIED / UNKNOWN:** all external provider behaviors without credentials; Yellow Card auth & payload vs current docs; Stacks burn entrypoint. **Flutterwave (Sprint 12)** is `IMPLEMENTED + TESTED` (wire-level) with external `UNVERIFIED`; its reference doc source is itself UNVERIFIED (P-4) — see §5.1.  **Breet (Sprint 13)** is `IMPLEMENTED + TESTED` (wire-level) with external `UNVERIFIED`; its webhook verifier is DEFERRED — see §5.2.
+- **NOT IMPLEMENTED / PLANNED:** `amount_ngn_expected`, `exchange_rate`, `external_*_id` column population; manual-review resolution API; disbursement create/approve/recover API; tests. (Sprint 4 wired `manual_review_queue` enqueue + resolution-on-terminal, but the operator resolution API stays Sprint 5.) **Sprint 12 backlog:** full corridor provider routing (P-1) — the Flutterwave handler verifies but does not advance; UNVERIFIED-list maintenance for new Sprint 12 endpoint claims is in `docs/SPRINT_FLUTTERWAVE_REPORT.md`. Flutterwave sandbox/live verification is gated on credentials (G-20) and remains `UNVERIFIED`.  **Sprint 13 backlog:** the Breet webhook verifier — must be added as isolated, additive-only code, without modifying existing functions or routes in `webhooks.js` or `webhookVerifier.js`.
