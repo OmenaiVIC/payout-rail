@@ -1,42 +1,42 @@
-\# Payout Rail — Prompt Library
+# Payout Rail — Prompt Library
 
 This folder contains the operating instructions for the Payout Rail extraction and rebuild project.
 
 It is the project's operating manual. The agent reads the relevant file at the start of each task. Files are versioned with the repository so that instructions remain stable, reviewable, and reproducible across sessions.
 
-\---
+---
 
-\## Purpose
+## Purpose
 
 The prompts define:
 
-\- The standing role and principles the agent must operate under.
+- The standing role and principles the agent must operate under.
 
-\- The extraction strategy that moves the BOS out of CineX without damaging CineX.
+- The extraction strategy that moves the BOS out of CineX without damaging CineX.
 
-\- The technical baseline that must be established before rebuilding.
+- The technical baseline that must be established before rebuilding.
 
-\- The sprint-by-sprint scope for the Payout Rail project.
+- The sprint-by-sprint scope for the Payout Rail project.
 
-\---
+---
 
-\## How to Use These Prompts
+## How to Use These Prompts
 
-\### Session Start (Every Time)
+### Session Start (Every Time)
 
 Before giving the agent any task, paste this once:
 
 Read and internalize docs/prompts/00_MASTER.md and docs/PRODUCT_CHANGE_CONTROL.md as standing constraints for this session. Confirm you have read both, summarize the key principles you will operate under, then wait for the task.
 
-\### Task Start
+### Task Start
 
 Then give the agent a short directive referencing the specific prompt file for the current task, for example:
 
 Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. Additional constraint: discovery-only. Write outputs to docs/extraction-plan/. Do not write, move, copy, or delete any other files. Stop when done and wait for my review.
 
-\---
+---
 
-\## Execution Order
+## Execution Order
 
 | #   | File                              | Purpose                                                   | Status     |
 | --- | --------------------------------- | --------------------------------------------------------- | ---------- |
@@ -57,9 +57,9 @@ Execute docs/prompts/01_PROMPT_0A_EXTRACTION.md under the standing constraints. 
 | 12 | `12_SPRINT_FLUTTERWAVE_ADAPTER.md` | Flutterwave v3 adapter — second provider behind the interface. | Active |
 
 Note: Sprint 3 is intentionally deferred until after Sprint 4. That is why its file is numbered `06_` while Sprint 4 is `05_`. The table lists them in execution order, not filename order.
-\---
+---
 
-\## Standing Constraints
+## Standing Constraints
 
 These apply to every session and every task:
 
@@ -75,25 +75,25 @@ These apply to every session and every task:
 
 | Destination repository | Payout Rail |
 
-\---
+---
 
-\## Guardrails
+## Guardrails
 
-\- CineX is a protected source product. Do not modify, rename, archive, or strip CineX functionality merely to serve Payout Rail.
+- CineX is a protected source product. Do not modify, rename, archive, or strip CineX functionality merely to serve Payout Rail.
 
-\- Extraction is a copy-and-decouple exercise, not a rewrite. Preserve working functionality until a documented reason to change it exists.
+- Extraction is a copy-and-decouple exercise, not a rewrite. Preserve working functionality until a documented reason to change it exists.
 
-\- Evidence over claims. Do not claim implemented, tested, verified, sandbox-verified, or production-ready status without supporting evidence.
+- Evidence over claims. Do not claim implemented, tested, verified, sandbox-verified, or production-ready status without supporting evidence.
 
-\- No scope creep. Anything classified D (post-grant) or E (outside scope) must go to `docs/POSTPONED\_BACKLOG.md`, not into the implementation.
+- No scope creep. Anything classified D (post-grant) or E (outside scope) must go to `docs/POSTPONED\_BACKLOG.md`, not into the implementation.
 
-\- Fail closed. Ambiguous or unverifiable settlement states must not advance to the next financial action.
+- Fail closed. Ambiguous or unverifiable settlement states must not advance to the next financial action.
 
-\- Human review required. Where the product design requires human approval, automation must never silently bypass it.
+- Human review required. Where the product design requires human approval, automation must never silently bypass it.
 
-\---
+---
 
-\## Outputs Produced by These Prompts
+## Outputs Produced by These Prompts
 
 | Prompt | Outputs |
 
@@ -121,28 +121,28 @@ These apply to every session and every task:
 
 | 10 (S8) | Capability matrix, claims register, grant package |
 
-\---
+---
 
-\## Maintenance
+## Maintenance
 
-\- During active development, these prompts are the source of truth for project scope and constraints.
+- During active development, these prompts are the source of truth for project scope and constraints.
 
-\- Do not delete prompts while a sprint that references them is in progress.
+- Do not delete prompts while a sprint that references them is in progress.
 
-\- When the project reaches a stable release, move this folder to `docs/archive/prompts/` for historical reference rather than deleting it.
+- When the project reaches a stable release, move this folder to `docs/archive/prompts/` for historical reference rather than deleting it.
 
-\---
+---
 
-\## Related Documents
+## Related Documents
 
-\- `docs/PRODUCT\_CHANGE\_CONTROL.md` — standing change control rule
+- `docs/PRODUCT\_CHANGE\_CONTROL.md` — standing change control rule
 
-\- `docs/POSTPONED\_BACKLOG.md` — deferred items (auto-populated by the agent)
+- `docs/POSTPONED\_BACKLOG.md` — deferred items (auto-populated by the agent)
 
-\- `docs/extraction-plan/` — outputs of PROMPT 0A
+- `docs/extraction-plan/` — outputs of PROMPT 0A
 
-\- `docs/ARCHITECTURE.md` — created in Sprint 7
+- `docs/ARCHITECTURE.md` — created in Sprint 7
 
-\- `docs/PRODUCT\_BASELINE.md` — created in PROMPT 0
+- `docs/PRODUCT\_BASELINE.md` — created in PROMPT 0
 
-\- `docs/CLAIMS\_REGISTER.md` — created in PROMPT 0 and updated through Sprint 8
+- `docs/CLAIMS\_REGISTER.md` — created in PROMPT 0 and updated through Sprint 8

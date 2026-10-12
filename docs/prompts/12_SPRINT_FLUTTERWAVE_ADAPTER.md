@@ -1,4 +1,4 @@
-\# 12 — SPRINT: FLUTTERWAVE PROVIDER ADAPTER
+# 12 — SPRINT: FLUTTERWAVE PROVIDER ADAPTER
 
 > Task: add Flutterwave as a second payout provider behind the existing provider-agnostic adapter interface.
 
@@ -6,9 +6,9 @@
 
 > Outputs: FlutterwaveAdapter, wire-contract tests, corridor config, docs updates, sprint report.
 
-\---
+---
 
-\## Why This Sprint Exists
+## Why This Sprint Exists
 
 Payout Rail was designed with a provider-agnostic adapter interface. Until now, only one provider has been implemented: Yellow Card. The interface was theoretical — the abstraction had never been exercised by a second implementation.
 
@@ -16,51 +16,51 @@ Flutterwave is now the second provider. Adding it proves the abstraction works, 
 
 The reviewer's question — "How does Payout Rail differ from existing tooling?" — is answered in part by this sprint: Payout Rail is not tied to any single provider. Two providers now exist behind the same interface.
 
-\---
+---
 
-\## What Has Been Confirmed
+## What Has Been Confirmed
 
 The Flutterwave v3 sandbox was tested directly before this sprint began. The following are confirmed working:
 
-\- `POST /v3/transfers` with `account\_bank: "flutterwave"` queues a stablecoin transfer successfully
+- `POST /v3/transfers` with `account\_bank: "flutterwave"` queues a stablecoin transfer successfully
 
-\- The response shape includes: `id`, `status` (`NEW`), `amount`, `currency`, `debit\_currency`, `fee`, `reference`, `meta.debit\_currency\_amount`
+- The response shape includes: `id`, `status` (`NEW`), `amount`, `currency`, `debit\_currency`, `fee`, `reference`, `meta.debit\_currency\_amount`
 
-\- `GET /v3/transfers/{id}` returns the current transfer status
+- `GET /v3/transfers/{id}` returns the current transfer status
 
-\- Auth is `Authorization: Bearer {FLW\_SECRET\_KEY}`
+- Auth is `Authorization: Bearer {FLW\_SECRET\_KEY}`
 
-\- Base URL is `https://api.flutterwave.com/v3`
+- Base URL is `https://api.flutterwave.com/v3`
 
 The following are confirmed by Flutterwave documentation but cannot be verified in sandbox:
 
-\- Webhooks are sent only for transfers that reach a terminal state (`SUCCESSFUL` or `FAILED`)
+- Webhooks are sent only for transfers that reach a terminal state (`SUCCESSFUL` or `FAILED`)
 
-\- Sandbox stablecoin transfers remain in `NEW` state and do not finalize
+- Sandbox stablecoin transfers remain in `NEW` state and do not finalize
 
-\- The webhook header is `verif-hash`
+- The webhook header is `verif-hash`
 
-\- Verification is a plain string comparison against `FLW\_SECRET\_HASH`
+- Verification is a plain string comparison against `FLW\_SECRET\_HASH`
 
-\- The payload uses `event: "transfer.completed"` with `data.status` for the outcome
+- The payload uses `event: "transfer.completed"` with `data.status` for the outcome
 
-\---
+---
 
-\## Scope (In)
+## Scope (In)
 
-\### 1. FlutterwaveAdapter
+### 1. FlutterwaveAdapter
 
 Create `src/services/bos/flutterwaveAdapter.js` implementing the same interface as `yellowCardAdapter.js`:
 
-\- `submitSend({ idempotency\_key, amount, currency, recipient\_type, recipient })` — calls `POST /v3/transfers` with `account\_bank: "flutterwave"`
+- `submitSend({ idempotency\_key, amount, currency, recipient\_type, recipient })` — calls `POST /v3/transfers` with `account\_bank: "flutterwave"`
 
-\- `lookupSend(sendId)` — calls `GET /v3/transfers/{sendId}`
+- `lookupSend(sendId)` — calls `GET /v3/transfers/{sendId}`
 
-\- `verifyWebhookSignature(rawBody, signature)` — compares `signature` to `FLW\_SECRET\_HASH`
+- `verifyWebhookSignature(rawBody, signature)` — compares `signature` to `FLW\_SECRET\_HASH`
 
-\- `healthCheck()` — calls `GET /v3/balances` or equivalent
+- `healthCheck()` — calls `GET /v3/balances` or equivalent
 
-\- `classifyError(error)` — same taxonomy as Yellow Card (transient, permanent, unknown)
+- `classifyError(error)` — same taxonomy as Yellow Card (transient, permanent, unknown)
 
 The adapter must match the documented v3 transfer body:
 

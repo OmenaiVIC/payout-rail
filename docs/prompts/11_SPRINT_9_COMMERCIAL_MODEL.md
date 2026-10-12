@@ -1,4 +1,4 @@
-\# 11 — SPRINT 9: COMMERCIAL MODEL
+# 11 — SPRINT 9: COMMERCIAL MODEL
 
 
 
@@ -12,11 +12,11 @@
 
 
 
-\---
+---
 
 
 
-\## Why This Sprint Exists
+## Why This Sprint Exists
 
 
 
@@ -28,31 +28,31 @@ That document is a hypothesis, not a plan. This sprint converts it into a formal
 
 
 
-\## Scope (Draft — Finalize at Sprint 9 Kickoff)
+## Scope (Draft — Finalize at Sprint 9 Kickoff)
 
 
 
 To be defined. Likely covers:
 
-\- Validated value proposition
+- Validated value proposition
 
-\- Target customer segments with evidence
+- Target customer segments with evidence
 
-\- Revenue mechanism selection (from the hypothesis's candidate list)
+- Revenue mechanism selection (from the hypothesis's candidate list)
 
-\- Unit economics with real numbers
+- Unit economics with real numbers
 
-\- Competitive positioning
+- Competitive positioning
 
-\- Moat analysis
+- Moat analysis
 
-\- Grant-to-revenue bridge
+- Grant-to-revenue bridge
 
-\- Risk register
+- Risk register
 
 
 
-\## Gate
+## Gate
 
 
 

@@ -62,27 +62,27 @@ CORE VALUE PROPOSITION:
 
 Help Stacks applications abstract the operational complexity of local payouts:
 
-\- payout lifecycle management
+- payout lifecycle management
 
-\- state transitions
+- state transitions
 
-\- idempotency
+- idempotency
 
-\- retries
+- retries
 
-\- provider adapters
+- provider adapters
 
-\- webhook handling
+- webhook handling
 
-\- reconciliation
+- reconciliation
 
-\- failure recovery
+- failure recovery
 
-\- evidence collection
+- evidence collection
 
-\- auditability
+- auditability
 
-\- human approval controls where required
+- human approval controls where required
 
 
 
@@ -204,15 +204,15 @@ Production evidence must be separately demonstrated.
 
 Before modifying existing functionality:
 
-\- inspect it
+- inspect it
 
-\- identify dependencies
+- identify dependencies
 
-\- run relevant tests
+- run relevant tests
 
-\- record the baseline
+- record the baseline
 
-\- preserve useful behavior unless there is a documented reason to change it.
+- preserve useful behavior unless there is a documented reason to change it.
 
 
 
@@ -228,37 +228,37 @@ Refactor incrementally.
 
 Do not implement:
 
-\- CineX creative financing
+- CineX creative financing
 
-\- campaigns
+- campaigns
 
-\- creative profiles
+- creative profiles
 
-\- creator reputation
+- creator reputation
 
-\- milestone financing
+- milestone financing
 
-\- investor marketplace
+- investor marketplace
 
-\- yield
+- yield
 
-\- DLCs
+- DLCs
 
-\- Lightning
+- Lightning
 
-\- Bitcoin oracle infrastructure
+- Bitcoin oracle infrastructure
 
-\- BTC/USD oracle
+- BTC/USD oracle
 
-\- multi-country payout production
+- multi-country payout production
 
-\- custody
+- custody
 
-\- exchange functionality
+- exchange functionality
 
-\- mobile application
+- mobile application
 
-\- complex dashboard
+- complex dashboard
 
 unless a later sprint explicitly authorizes it.
 
@@ -268,15 +268,15 @@ unless a later sprint explicitly authorizes it.
 
 The implementation must be traceable to:
 
-\- the existing repository
+- the existing repository
 
-\- the approved BOS product scope
+- the approved BOS product scope
 
-\- the sprint acceptance criteria
+- the sprint acceptance criteria
 
-\- current canonical Stacks/USDCx documentation where protocol behavior is concerned
+- current canonical Stacks/USDCx documentation where protocol behavior is concerned
 
-\- current provider documentation where provider APIs are concerned.
+- current provider documentation where provider APIs are concerned.
 
 
 
@@ -290,31 +290,31 @@ For every sprint:
 
 PHASE 0 — INSPECT
 
-\- Inspect repository structure.
+- Inspect repository structure.
 
-\- Identify relevant files.
+- Identify relevant files.
 
-\- Read existing documentation.
+- Read existing documentation.
 
-\- Read existing tests.
+- Read existing tests.
 
-\- Identify current behavior.
+- Identify current behavior.
 
-\- Identify contradictions.
+- Identify contradictions.
 
-\- Do not code yet.
+- Do not code yet.
 
 
 
 PHASE 1 — BASELINE
 
-\- Run relevant existing tests.
+- Run relevant existing tests.
 
-\- Record pass/fail.
+- Record pass/fail.
 
-\- Identify environmental failures separately from code failures.
+- Identify environmental failures separately from code failures.
 
-\- Record existing functionality that must be preserved.
+- Record existing functionality that must be preserved.
 
 
 
@@ -324,19 +324,19 @@ Create a short implementation plan.
 
 Identify:
 
-\- files to create
+- files to create
 
-\- files to modify
+- files to modify
 
-\- files to remove, if any
+- files to remove, if any
 
-\- interfaces affected
+- interfaces affected
 
-\- tests required
+- tests required
 
-\- documentation required
+- documentation required
 
-\- acceptance criteria.
+- acceptance criteria.
 
 
 
@@ -350,15 +350,15 @@ PHASE 4 — TEST
 
 Run:
 
-\- unit tests
+- unit tests
 
-\- integration tests
+- integration tests
 
-\- regression tests
+- regression tests
 
-\- lint/type checks where available
+- lint/type checks where available
 
-\- deterministic mocked external-provider tests.
+- deterministic mocked external-provider tests.
 
 
 
@@ -378,39 +378,39 @@ PHASE 7 — PRODUCT REVIEW
 
 Report:
 
-\- completed
+- completed
 
-\- not completed
+- not completed
 
-\- blocked
+- blocked
 
-\- assumptions
+- assumptions
 
-\- risks
+- risks
 
-\- evidence
+- evidence
 
-\- recommended next action.
+- recommended next action.
 
 
 
 DO NOT:
 
-\- invent test results
+- invent test results
 
-\- claim live API access without credentials/evidence
+- claim live API access without credentials/evidence
 
-\- claim live payout without transaction evidence
+- claim live payout without transaction evidence
 
-\- claim production readiness
+- claim production readiness
 
-\- claim external adoption
+- claim external adoption
 
-\- silently change product scope
+- silently change product scope
 
-\- delete tests because they are inconvenient
+- delete tests because they are inconvenient
 
-\- replace failing tests with weaker tests simply to obtain green status.
+- replace failing tests with weaker tests simply to obtain green status.
 
 
 

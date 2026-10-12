@@ -1,4 +1,4 @@
-\# 04b — SPRINT 2: STACKS/USDCx WITHDRAWAL LIFECYCLE (MODEL CORRECTION)
+# 04b — SPRINT 2: STACKS/USDCx WITHDRAWAL LIFECYCLE (MODEL CORRECTION)
 
 
 
@@ -10,11 +10,11 @@
 
 
 
-\---
+---
 
 
 
-\## Why This Sprint Exists
+## Why This Sprint Exists
 
 
 
@@ -22,13 +22,13 @@ The Sprint 0 baseline (`docs/PRODUCT\_BASELINE.md` §6) found that the current c
 
 
 
-1\. The app initiates a USDCx \*\*burn\*\* on Stacks.
+1\. The app initiates a USDCx **burn** on Stacks.
 
 2\. The burn is the attestation trigger.
 
-3\. External services (Stacks attestation service → xReserve → USDC release to destination wallet) process the withdrawal \*\*outside the app's control\*\*.
+3\. External services (Stacks attestation service → xReserve → USDC release to destination wallet) process the withdrawal **outside the app's control**.
 
-4\. The app's role is to \*\*observe\*\* and \*\*record\*\*, not to fake confirmation.
+4\. The app's role is to **observe** and **record**, not to fake confirmation.
 
 
 
@@ -40,15 +40,15 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-\---
+---
 
 
 
-\## Scope (In)
+## Scope (In)
 
 
 
-1\. \*\*Re-model destination release as an observation, not an action.\*\*
+1\. **Re-model destination release as an observation, not an action.**
 
 &#x20;  - Remove the fabricated `releaseDestination()` returning `confirmed`.
 
@@ -68,7 +68,7 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-2\. \*\*Correct the burn entrypoint model (G-09).\*\*
+2\. **Correct the burn entrypoint model (G-09).**
 
 &#x20;  - Document that the current code targets `usdcx` token contract, and that the canonical entrypoint may be `usdcx-v1`.
 
@@ -82,7 +82,7 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-3\. \*\*Add an explicit `unobserved` state to the lifecycle.\*\*
+3\. **Add an explicit `unobserved` state to the lifecycle.**
 
 &#x20;  - The state machine must have a distinct state that means "we are waiting for external evidence, but none exists yet."
 
@@ -92,7 +92,7 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-4\. \*\*Add a mocked external-evidence source.\*\*
+4\. **Add a mocked external-evidence source.**
 
 &#x20;  - A test-only mock that simulates the external settlement process emitting evidence.
 
@@ -100,7 +100,7 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-5\. \*\*Tests.\*\*
+5\. **Tests.**
 
 &#x20;  - Each new state transition has a deterministic mocked test.
 
@@ -110,7 +110,7 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-6\. \*\*Update documentation.\*\*
+6\. **Update documentation.**
 
 &#x20;  - `docs/PRODUCT\_BASELINE.md` §6 — update the settlement model section to reflect the corrected model.
 
@@ -120,55 +120,55 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-\## Scope (Out)
+## Scope (Out)
 
 
 
-\- Reaching real Stacks testnet
+- Reaching real Stacks testnet
 
-\- Reaching real xReserve
+- Reaching real xReserve
 
-\- Reaching real Yellow Card sandbox
+- Reaching real Yellow Card sandbox
 
-\- Yellow Card adapter changes (Sprint 3)
+- Yellow Card adapter changes (Sprint 3)
 
-\- Evidence chain implementation (Sprint 4)
+- Evidence chain implementation (Sprint 4)
 
-\- Public API changes (Sprint 5)
+- Public API changes (Sprint 5)
 
-\- Any new state that is not directly required to model the external lifecycle correctly
-
-
-
-\---
+- Any new state that is not directly required to model the external lifecycle correctly
 
 
 
-\## Constraints
+---
 
 
 
-\- Do not modify CineX.
-
-\- Do not perform any external network call. All tests are offline.
-
-\- Do not claim external verification — every external step remains `UNVERIFIED` until a later, explicitly authorized verification sprint.
-
-\- All tests must run via `npm test` with no credentials.
-
-\- No new runtime npm dependencies.
-
-\- Fail closed: unobserved or ambiguous states must not advance to Yellow Card payout.
-
-\- One commit per logical fix.
+## Constraints
 
 
 
-\---
+- Do not modify CineX.
+
+- Do not perform any external network call. All tests are offline.
+
+- Do not claim external verification — every external step remains `UNVERIFIED` until a later, explicitly authorized verification sprint.
+
+- All tests must run via `npm test` with no credentials.
+
+- No new runtime npm dependencies.
+
+- Fail closed: unobserved or ambiguous states must not advance to Yellow Card payout.
+
+- One commit per logical fix.
 
 
 
-\## Acceptance Criteria
+---
+
+
+
+## Acceptance Criteria
 
 
 
@@ -196,19 +196,19 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 
 
-\---
+---
 
 
 
-\## Working Method (per Master Prompt §WORKING METHOD)
+## Working Method (per Master Prompt §WORKING METHOD)
 
 
 
-1\. \*\*Inspect\*\* — read `xreserveAdapter.js`, `transitionActions.js` (releaseDestination), `stateMachine.js`, `types.js`, and the existing tests.
+1\. **Inspect** — read `xreserveAdapter.js`, `transitionActions.js` (releaseDestination), `stateMachine.js`, `types.js`, and the existing tests.
 
-2\. \*\*Baseline\*\* — run `npm test`; confirm Sprint 1.5 state (69/68/0/1).
+2\. **Baseline** — run `npm test`; confirm Sprint 1.5 state (69/68/0/1).
 
-3\. \*\*Plan\*\* — produce `docs/SPRINT\_2\_PLAN.md` with:
+3\. **Plan** — produce `docs/SPRINT\_2\_PLAN.md` with:
 
 &#x20;  - The exact set of new states and transitions
 
@@ -224,55 +224,55 @@ Sprint 2 corrects the model. It does not attempt to reach testnet or xReserve �
 
 &#x20;  - Deviations from the Sprint 1.5 state, with reason
 
-&#x20;  - \*\*Explicit statement of what remains UNVERIFIED and why\*\*
+&#x20;  - **Explicit statement of what remains UNVERIFIED and why**
 
-&#x20;  - \*\*Wait for review before implementing.\*\*
+&#x20;  - **Wait for review before implementing.**
 
-4\. \*\*Implement\*\* — one commit per fix.
+4\. **Implement** — one commit per fix.
 
-5\. \*\*Test\*\* — full suite must pass.
+5\. **Test** — full suite must pass.
 
-6\. \*\*Evidence\*\* — capture test output; note external verification as BLOCKED, not claimed.
+6\. **Evidence** — capture test output; note external verification as BLOCKED, not claimed.
 
-7\. \*\*Document\*\* — update the three baseline documents and add `docs/SPRINT\_2\_REPORT.md`.
-
-
-
-\---
+7\. **Document** — update the three baseline documents and add `docs/SPRINT\_2\_REPORT.md`.
 
 
 
-\## Deliverables
+---
 
 
 
-\- `docs/SPRINT\_2\_PLAN.md` — plan (produced first, reviewed before implementation)
-
-\- Corrected release model (observation-based, not fabrication)
-
-\- Explicit `unobserved` state with timeout
-
-\- Mocked external-evidence source
-
-\- Tests for every new state and transition
-
-\- Updated `PRODUCT\_BASELINE.md`, `CLAIMS\_REGISTER.md`, `GAP\_REGISTER.md`
-
-\- `docs/SPRINT\_2\_REPORT.md`
-
-\- No changes to CineX
-
-\- No new runtime npm dependencies
-
-\- No external network calls
+## Deliverables
 
 
 
-\---
+- `docs/SPRINT\_2\_PLAN.md` — plan (produced first, reviewed before implementation)
+
+- Corrected release model (observation-based, not fabrication)
+
+- Explicit `unobserved` state with timeout
+
+- Mocked external-evidence source
+
+- Tests for every new state and transition
+
+- Updated `PRODUCT\_BASELINE.md`, `CLAIMS\_REGISTER.md`, `GAP\_REGISTER.md`
+
+- `docs/SPRINT\_2\_REPORT.md`
+
+- No changes to CineX
+
+- No new runtime npm dependencies
+
+- No external network calls
 
 
 
-\## Blockers to Report (Do Not Silently Resolve)
+---
+
+
+
+## Blockers to Report (Do Not Silently Resolve)
 
 
 
@@ -280,15 +280,15 @@ If any of the following are true during implementation, STOP and report:
 
 
 
-\- The corrected model requires removing a state that other code depends on
+- The corrected model requires removing a state that other code depends on
 
-\- The corrected model requires a structural change to the state machine that exceeds "add a state, add transitions"
+- The corrected model requires a structural change to the state machine that exceeds "add a state, add transitions"
 
-\- The evidence-source mock cannot be made deterministic without a design compromise
+- The evidence-source mock cannot be made deterministic without a design compromise
 
-\- An existing Sprint 0.5 or 1.5 test can no longer pass because the model changed
+- An existing Sprint 0.5 or 1.5 test can no longer pass because the model changed
 
-\- A new transition cannot be tested without external credentials
+- A new transition cannot be tested without external credentials
 
 
 
@@ -296,11 +296,11 @@ Report blockers with: what was found, what was expected, options, and recommende
 
 
 
-\---
+---
 
 
 
-\## Gate
+## Gate
 
 
 
