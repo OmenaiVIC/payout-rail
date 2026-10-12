@@ -1,4 +1,4 @@
-\# Project Concept — Payout Rail
+# Project Concept — Payout Rail
 
 
 
@@ -8,7 +8,7 @@
 
 
 
-\## One sentence
+## One sentence
 
 
 
@@ -16,7 +16,7 @@ Payout Rail is an open-source orchestration layer that connects Stacks applicati
 
 
 
-\## The problem
+## The problem
 
 
 
@@ -28,7 +28,7 @@ This is not a settlement problem. Stacks already settles. This is not a bridge p
 
 
 
-\## The product
+## The product
 
 
 
@@ -40,7 +40,7 @@ It sits between an originating Stacks application and a local payout provider. I
 
 
 
-\## The customer
+## The customer
 
 
 
@@ -50,23 +50,23 @@ The customer is not the end user. The customer is the Stacks application that ne
 
 Named segments:
 
-\- Marketplaces settling seller earnings
+- Marketplaces settling seller earnings
 
-\- DAOs and contributor platforms distributing rewards
+- DAOs and contributor platforms distributing rewards
 
-\- Creator platforms paying out to creators
+- Creator platforms paying out to creators
 
-\- Grant platforms disbursing to grantees
+- Grant platforms disbursing to grantees
 
-\- Gaming ecosystems paying out to players
+- Gaming ecosystems paying out to players
 
-\- Freelance and work platforms paying contractors
+- Freelance and work platforms paying contractors
 
-\- Payroll and reward systems
+- Payroll and reward systems
 
-\- Remittance and agent-payment products
+- Remittance and agent-payment products
 
-\- Fintech and crypto applications in emerging economies integrating Stacks
+- Fintech and crypto applications in emerging economies integrating Stacks
 
 
 
@@ -74,7 +74,7 @@ The end user is the person receiving the value: someone in Nigeria who earned $5
 
 
 
-\## Why this exists now
+## Why this exists now
 
 
 
@@ -82,11 +82,11 @@ Three shifts have converged:
 
 
 
-1\. \*\*Stacks has matured enough to settle dollar-denominated value\*\* — USDCx on Stacks makes programmable dollar settlement real.
+1\. **Stacks has matured enough to settle dollar-denominated value** — USDCx on Stacks makes programmable dollar settlement real.
 
-2\. \*\*The Stacks ecosystem is actively building payment and escrow primitives\*\* — sBTC Escrow, Stackstream, Nayori, AgentPay, PaySats, and others. The primitive layer is being funded. The last-mile layer is not.
+2\. **The Stacks ecosystem is actively building payment and escrow primitives** — sBTC Escrow, Stackstream, Nayori, AgentPay, PaySats, and others. The primitive layer is being funded. The last-mile layer is not.
 
-3\. \*\*Emerging-market demand for local fiat settlement is real\*\* — crypto-native settlement is not the end state for most users in these markets. It is the mechanism. The destination is local currency in a bank account.
+3\. **Emerging-market demand for local fiat settlement is real** — crypto-native settlement is not the end state for most users in these markets. It is the mechanism. The destination is local currency in a bank account.
 
 
 
@@ -94,11 +94,11 @@ The ecosystem has solved value \*entering\* Stacks (HermesBridge and others). It
 
 
 
-\## The blue ocean positioning
+## The blue ocean positioning
 
 
 
-\*\*The last-mile payout layer for Stacks.\*\*
+**The last-mile payout layer for Stacks.**
 
 
 
@@ -110,7 +110,7 @@ A programmable settlement-orchestration layer that helps Stacks applications mov
 
 
 
-\## Nigeria is the first corridor, not the product
+## Nigeria is the first corridor, not the product
 
 
 
@@ -122,7 +122,7 @@ The long-term architecture is corridor-agnostic. Additional corridors — Kenya/
 
 
 
-\## What makes it different
+## What makes it different
 
 
 
@@ -130,13 +130,13 @@ The Stacks ecosystem already has payments primitives. Payout Rail is not a compe
 
 
 
-\- \*\*HermesBridge\*\* brings USDC liquidity \*into\* Stacks. Payout Rail moves value \*out\* to local payout rails.
+- **HermesBridge** brings USDC liquidity \*into\* Stacks. Payout Rail moves value \*out\* to local payout rails.
 
-\- \*\*Stackstream\*\* streams on-chain payments. Payout Rail converts a settled payout into a local fiat delivery.
+- **Stackstream** streams on-chain payments. Payout Rail converts a settled payout into a local fiat delivery.
 
-\- \*\*sBTC Escrow\*\* holds value conditionally on-chain. Payout Rail dispatches the released value to a real-world destination.
+- **sBTC Escrow** holds value conditionally on-chain. Payout Rail dispatches the released value to a real-world destination.
 
-\- \*\*AgentPay and other agent-payment projects\*\* initiate payments. Payout Rail records the payout's lifecycle with audit-grade evidence.
+- **AgentPay and other agent-payment projects** initiate payments. Payout Rail records the payout's lifecycle with audit-grade evidence.
 
 
 
@@ -144,53 +144,53 @@ The gap is not another payment primitive. The gap is the orchestration layer tha
 
 
 
-\## What the project is funded to deliver
+## What the project is funded to deliver
 
 
 
-The grant funds the transition from \*\*validated prototype\*\* to \*\*verified, reusable payout integration layer\*\*:
+The grant funds the transition from **validated prototype** to **verified, reusable payout integration layer**:
 
 
 
-\- Reconcile the orchestration core with the canonical Stacks/USDCx withdrawal architecture
+- Reconcile the orchestration core with the canonical Stacks/USDCx withdrawal architecture
 
-\- Validate the Nigeria/NGN corridor through a sandbox provider integration
+- Validate the Nigeria/NGN corridor through a sandbox provider integration
 
-\- Publish a public SDK and an external integrator example
+- Publish a public SDK and an external integrator example
 
-\- Demonstrate a reproducible end-to-end payout with a complete evidence trail
+- Demonstrate a reproducible end-to-end payout with a complete evidence trail
 
-\- Produce the documentation, security posture, and integration guidance that lets another Stacks application adopt the layer without depending on the authors
-
-
-
-\## What the project is not
+- Produce the documentation, security posture, and integration guidance that lets another Stacks application adopt the layer without depending on the authors
 
 
 
-\- Not a live production system (this grant funds validation, not launch)
-
-\- Not a custodian of funds
-
-\- Not a provider of fiat processing licenses
-
-\- Not a claim of regulatory compliance
-
-\- Not a multi-corridor production system (Nigeria first; others configured)
-
-\- Not a CineX product (CineX is a separate protected source product; Payout Rail was extracted from it and exists independently)
+## What the project is not
 
 
 
-\## How success is measured
+- Not a live production system (this grant funds validation, not launch)
+
+- Not a custodian of funds
+
+- Not a provider of fiat processing licenses
+
+- Not a claim of regulatory compliance
+
+- Not a multi-corridor production system (Nigeria first; others configured)
+
+- Not a CineX product (CineX is a separate protected source product; Payout Rail was extracted from it and exists independently)
 
 
 
-Primary: \*\*a reusable, open-source orchestration layer that any Stacks application can integrate.\*\*
+## How success is measured
 
 
 
-Secondary: \*\*at least one external Stacks application integrating the layer in a sandbox or testnet pilot.\*\*
+Primary: **a reusable, open-source orchestration layer that any Stacks application can integrate.**
+
+
+
+Secondary: **at least one external Stacks application integrating the layer in a sandbox or testnet pilot.**
 
 
 
@@ -198,25 +198,25 @@ The first is the deliverable. The second is the proof that the first matters.
 
 
 
-\## Status
+## Status
 
 
 
-\- Core architecture: built and tested (10 sprints, 184 tests, 0 failures)
+- Core architecture: built and tested (10 sprints, 184 tests, 0 failures)
 
-\- Evidence chain: built
+- Evidence chain: built
 
-\- Reconciliation: built
+- Reconciliation: built
 
-\- Public API: built
+- Public API: built
 
-\- Example client: built
+- Example client: built
 
-\- Reproducible demo: built
+- Reproducible demo: built
 
-\- Nigeria provider adapter: corrected to documented model, sandbox verification pending credentials
+- Nigeria provider adapter: corrected to documented model, sandbox verification pending credentials
 
-\- External integrator example: to be delivered under this grant
+- External integrator example: to be delivered under this grant
 
-\- Sandbox verification: to be delivered under this grant
+- Sandbox verification: to be delivered under this grant
 
