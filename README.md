@@ -61,11 +61,11 @@ None of these exists today. The grant funds validation. `docs/COMMERCIAL_MODEL.m
 - **The reconciliation layer** — internal evidence is reconciled against provider `external_refs`; amount/state drift is detected and routed to `manual_review` rather than silently corrected.
 - **The v1 public API** — idempotent create, advance, receipt, retry, recover, approve and resolve, behind fail-closed bearer auth, with a normalized error contract.
 - **Corridor configuration** — rate pairs, recipient-registry mode, gates, and circuit-breaker settings per corridor; NGN is implemented and covered by tests, KES/ZAR are configuration-proven.
-- **Two provider adapters, serving different legs** — Yellow Card serves the **NGN local payout leg** (USDCx settled on Stacks → NGN to a bank or mobile money account). Flutterwave's v3 adapter serves the **stablecoin disbursement leg** (debit NGN from the merchant account → deliver USDC to a wallet address). It is *not* an NGN payout. The two adapters are not interchangeable; they sit alongside xReserve as parallel value-movement paths. Yellow Card remains the primary NGN payout provider. Both adapters are wire-contract tested against a stubbed fetch; both are **sandbox/live UNVERIFIED**. Provider *selection* is available at the config layer via `PAYOUT_PROVIDER` (default `yellowcard`); **pipeline routing is not implemented** (backlog P-1) — the payout leg remains wired to Yellow Card. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §5 and [`docs/flutterwave-api-reference.md`](docs/flutterwave-api-reference.md) §0.
+- **Three provider adapters, serving different legs** — Yellow Card serves the **NGN local payout leg** (USDCx settled on Stacks → NGN to a bank or mobile money account). Flutterwave's v3 adapter serves the **stablecoin disbursement leg** (debit NGN from the merchant account → deliver USDC to a wallet address); it is *not* an NGN payout. Breet's v1 adapter is a **second NGN local-fiat off-ramp** (add bank → withdraw to bank); its webhook verifier is **deferred** pending a focused sprint. The adapters are not interchangeable; they sit alongside xReserve as parallel value-movement paths. Yellow Card remains the primary NGN payout provider. All three adapters are wire-contract tested against a stubbed fetch; all three are **sandbox/live UNVERIFIED**. Provider *selection* is available at the config layer via `PAYOUT_PROVIDER` (default `yellowcard`); **pipeline routing is not implemented** (backlog P-1) — the payout leg remains wired to Yellow Card. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §5 (incl. §5.2) and [`docs/flutterwave-api-reference.md`](docs/flutterwave-api-reference.md) §0.
 
 ## 5. Roadmap
 
-**Current:** Orchestration core, evidence chain, reconciliation layer, v1 public API, and two provider adapters (Yellow Card for NGN payouts, Flutterwave for stablecoin transfers, pending F4B production approval). Sandbox verification pending provider onboarding.
+**Current:** Orchestration core, evidence chain, reconciliation layer, v1 public API, and three provider adapters (Yellow Card for NGN payouts, Flutterwave for stablecoin transfers, Breet for a second NGN off-ramp — Flutterwave pending F4B production approval; Breet webhook verifier deferred). Sandbox verification pending provider onboarding.
 
 **Next:** Sandbox validation for the Nigeria/NGN corridor, a second NGN provider, public SDK, external integrator example, and external developer testing.
 
@@ -80,7 +80,7 @@ See [`docs/MULTI_CORRIDOR_PLAN.md`](docs/MULTI_CORRIDOR_PLAN.md) for the corrido
 
 > Payout Rail is **prototype** software. The pipeline, the 15-state machine, the
 > evidence chain, the v1 public API, and the Nigeria (NGN) corridor are
-> implemented and covered by 242 passing automated tests, but no external adapter
+> implemented and covered by 258 passing automated tests, but no external adapter
 > has been verified against a live or sandbox provider (no provider credentials
 > exist in this environment — G-20), and no external application has used the
 > layer. **Do not use Payout Rail to move real funds or handle real beneficiary
@@ -126,7 +126,7 @@ Grounding: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §"Not in the system".
 
 ```bash
 npm ci
-npm test        # 243 tests, 242 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
+npm test        # 259 tests, 258 pass, 1 skip (Postgres-gated); no Postgres, credentials, or network needed
 npm run demo:payout:ngn                # demo mode — loopback, fully offline, in-process mocks only
 npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without credentials rather than running
 ```
@@ -136,7 +136,7 @@ npm run demo:payout:ngn -- --mode=sandbox   # fail-closed: exits 2 without crede
 
 ## 10. Test status
 
-243 tests, 242 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters and a stubbed `fetch` — zero infrastructure.
+259 tests, 258 pass, 1 skip (the Postgres-gated integration case). The suite runs offline against an in-repo `FakeDb` with mock adapters and a stubbed `fetch` — zero infrastructure.
 
 ## 11. Environment reference
 
