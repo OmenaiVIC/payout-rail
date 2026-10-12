@@ -251,8 +251,50 @@ implementation; its limits are equally important to state:
 | **xReserve**    | USDC bridge release semantics                                                 | release **observation** surface only (G-08/F8); **UNVERIFIED** stub, fail-closed                                                                                                                                                                                                                                                                                                                                                         |
 | **Yellow Card** | Sends API submit/lookup/payout-status/webhook                                 | `YcHmacV1` signing + webhook verify, error mapping, submit/payout/status wiring — 28 wire-contract tests; sandbox **UNVERIFIED** (no credentials, G-20)                                                                                                                                                                                                                                                                                  |
 | **Flutterwave** | v3 Transfers submit/lookup/health; `verif-hash` (USDC→wallet, not NGN payout) | Bearer auth, the 8-field transfers body, `currency`→`debit_currency` inversion, verbatim `amount`, fail-closed wallet destination, status normalization, `verif-hash` verify + route — 22 wire-contract + 24 webhook + 8 config tests. **Not routed from the pipeline (P-1)**; sandbox/live **UNVERIFIED**; reference doc is a prompt-derived stub (P-4); off-ramp blocked by F4B production-account prerequisite (confirmed 2026-10-02) |
+| **Breet**       | Breet API v1 (NGN off-ramp: add bank, withdraw, lookup)                       | `src/services/bos/breetAdapter.js`; NIBSS→Breet-ID mapping in `config/breet-banks.json`; call-time env reads; `classifyError` taxonomy; submit/lookup/health — 8 wire-contract + 2 provider-config tests. **Webhook verifier DEFERRED** (prior attempt broke Flutterwave/Yellow Card routes; must be added as isolated, additive code). **Not routed from the pipeline (P-1)**; sandbox/live **UNVERIFIED** (no credentials, G-20) | 
 
 The layer takes no custody, does not hold keys (it reads a signing key from the integrator's environment), and never guesses an external outcome.
+
+
+### 5.2 A third provider, a deferred webhook, and a repair record
+
+Sprint 13 added `breetAdapter.js`, the third payout-provider adapter behind this
+boundary (after Yellow Card and Flutterwave). Its shape:
+
+- **The surface is an NGN off-ramp.** Breet's v1 API accepts a two-step flow: add a
+  bank (`POST /payments/banks/add`) and withdraw to it
+  (`POST /payments/withdraw/bank/{id}`). The adapter also exposes `lookupSend`
+  (`GET /payments/withdrawal/{id}`) and `healthCheck`. Bank codes are resolved from
+  a NIBSS-to-Breet-ID mapping in `config/breet-banks.json`.
+- **Environment reads are call-time, not module-load.** The adapter's `BREET_*`
+  variables are resolved by accessor functions on every call (`envBaseUrl()`,
+  `envAppId()`, `envAppSecret()`, `envWebhookSecret()`, `envEnv()`,
+  `envWithdrawalPin()`, `envMerchantRef()`), so tests and hosts that populate
+  `process.env` after import see the values they set.
+- **`classifyError` matches on message, not `error.name`.** A plain
+  `new Error('fetch failed')` classifies as `transient`, matching the Flutterwave
+  taxonomy; 429/5xx → `transient`, other 4xx → `permanent`, else `unknown`.
+- **Webhook verification is DEFERRED.** Breet has no verifier branch and no route
+  today. A prior attempt broke the existing Flutterwave and Yellow Card webhook
+  routes and was reverted. A future focused sprint must add it as isolated,
+  additive-only code — no modification to existing functions or routes in
+  `webhooks.js` or `webhookVerifier.js`. The canonical `verifyWebhook` dispatcher
+  continues to serve `yellowcard`, `flutterwave`, and `xreserve` unchanged.
+- **Provider routing is not implemented.** As with Flutterwave, `PAYOUT_PROVIDER`
+  selects the published adapter at the config layer only; the payout leg remains
+  hard-wired to `ctx.adapters.yellowcard` (P-1).
+- **Repair record (2026-10-09).** The Sprint 13 commit `3903653` introduced three
+  regressions repaired in a follow-up commit (`9f7bd7d`): `webhooks.js` imported a
+  nonexistent `webhookHandlers.js` (restored to `disbursementService.js`); the
+  adapter captured env at module load (now call-time, above); and a Breet webhook
+  test asserted the wrong signature scheme for Yellow Card (regression guard now
+  asserts dispatcher routing only). Post-repair suite: 259 tests, 258 pass, 0 fail,
+  1 skip.
+
+Status: IMPLEMENTED + TESTED (wire-level) — **sandbox/live UNVERIFIED** (no
+credentials in this environment, G-20). See `docs/PROVIDER_ADAPTERS.md` §2 for the
+adapter reference and §3 for the UNVERIFIED matrix.
+
 
 ## 6. Public API surface (summary)
 
