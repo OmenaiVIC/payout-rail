@@ -12,7 +12,7 @@ https://github.com/OmenaiVIC/payout-rail
 
 ## Current repository state (as of 2026-10-12)
 
-- Local HEAD = origin/main = `3c4eeac`. Everything is pushed. Working tree clean.
+- Local HEAD = origin/main = `e74444b`. Everything is pushed. Working tree clean.
 - Test suite: 259 tests, 258 pass, 0 fail, 1 skip (the Postgres-gated integration case).
   `npm test` is the source of truth; run it before trusting any count.
 - Recent commits (newest first):
