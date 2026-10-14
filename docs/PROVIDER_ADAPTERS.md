@@ -145,7 +145,11 @@ contract an adapter must satisfy:
 - **Surface:** `src/services/bos/breetAdapter.js` — implemented, wire-contract tested.
   Bank-ID mapping lives in `config/breet-banks.json` (NIBSS-to-Breet-ID).
 - **Status (claims table):** IMPLEMENTED + TESTED (wire-level) — **sandbox/live UNVERIFIED**.
-  No credentials in this environment.
+  Sandbox credentials exist and were used to generate a TRX_TEST wallet, but Breet's
+  mock-trade trigger is unreachable for this account tier (returns "wallet not found"
+  despite an active wallet). Breet's docs contradict each other on the required
+  `X-Breet-Env` value for that endpoint. The webhook payload shape therefore remains
+  UNVERIFIED; a live capture is tracked as backlog P-8.
 - **Environment contract:** the adapter reads `BREET_*` environment variables at
   **call time**, not at module load. The accessor functions (`envBaseUrl()`,
   `envAppId()`, `envAppSecret()`, `envWebhookSecret()`, `envEnv()`,
