@@ -68,11 +68,17 @@ Also: `classifyError` in `breetAdapter.js` was relaxed so a plain
 
 ## What is still incomplete
 
-**The Breet webhook verifier is DEFERRED.** The prior attempt broke the existing
-Flutterwave and Yellow Card webhook routes and was reverted. Breet has no verifier
-branch and no route today. A future focused sprint must add it as isolated,
-additive-only code — do not modify existing functions or routes in `webhooks.js`
-or `webhookVerifier.js`.
+**Breet webhook verifier — stale claim corrected (Sprint Breet Webhook).** A
+previous revision of this handoff stated Breet "has no verifier branch and no
+route." That was half false. The Breet **verifier branch already exists and is
+tested**: `getBreetSecret()` (`webhookVerifier.js:10`), `verifyBreetWebhook`
+(`:110-129`), the `case 'breet'` dispatch (`:142-143`), and the export (`:154`),
+covered by `test/unit/breet-webhook.test.js`. The prior attempt (`3903653`) broke
+the existing Flutterwave and Yellow Card routes; the revert (`9f7bd7d`) removed the
+Breet **route** but left the verifier branch intact. Only the route was missing,
+and it is now added as isolated, additive-only code in `src/routes/webhooks.js` —
+no existing function or route in `webhooks.js` or `webhookVerifier.js` was
+modified. (Live sandbox webhook capture remains UNVERIFIED — see backlog P-8.)
 
 **Provider routing (P-1) is not implemented.** `PAYOUT_PROVIDER` selects the
 adapter at the config layer only; the payout leg remains hard-wired to

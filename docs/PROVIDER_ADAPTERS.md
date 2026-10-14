@@ -156,13 +156,24 @@ contract an adapter must satisfy:
   `permanent`, and anything else to `unknown`. The fetch check matches on the
   message alone (not on `error.name === 'TypeError'`), so a plain
   `new Error('fetch failed')` classifies as `transient`.
-- **Webhook verification:** **DEFERRED.** Breet has **no** verifier branch and
-  **no** route today. A prior attempt to add a Breet webhook verifier broke the
-  existing Flutterwave and Yellow Card webhook routes and was reverted. A future
-  focused sprint must add it as **isolated, additive code only** — no modification
-  to existing functions or routes in `webhooks.js` or `webhookVerifier.js`.
-  The canonical `verifyWebhook` dispatcher continues to serve
-  `yellowcard`, `flutterwave`, and `xreserve` unchanged.
+- **Webhook verification:** the **verifier branch exists and is tested**; the route
+  was the missing artifact and is now added. The canonical verifier already contains
+  `getBreetSecret()` (`webhookVerifier.js:10`), `verifyBreetWebhook` (`:110-129`), the
+  `case 'breet'` dispatch (`:142-143`), and the export (`:154`), covered by
+  `test/unit/breet-webhook.test.js`. A prior attempt (`3903653`) broke the existing
+  Flutterwave and Yellow Card webhook routes and was reverted (`9f7bd7d`); that
+  revert removed the Breet **route** but left the verifier branch intact — so the
+  earlier "no verifier branch" claim here was stale. The route is now added as
+  **isolated, additive code only** in `src/routes/webhooks.js` (Sprint Breet Webhook)
+  — no modification to existing functions or routes in `webhooks.js` or
+  `webhookVerifier.js`. The canonical `verifyWebhook` dispatcher continues to serve
+  `yellowcard`, `flutterwave`, `xreserve`, and `breet` (the `breet` case predates
+  this sprint).
+- **Webhook payload shape — UNVERIFIED.** No live Breet delivery has been captured:
+  Breet's sandbox mock-trade trigger is unreachable with the provided credentials
+  (404/500-class errors depending on `X-Breet-Env`; Breet's own docs disagree on the
+  required value). The `/breet` route does not parse fields (deferred to P-1), so it
+  is exercised against a synthetic fixture marked UNVERIFIED. See backlog **P-8**.
 - **Repairs (2026-10-09):** the Sprint 13 commit `3903653` ("feat: add Breet
   webhook verification, route, env vars, tests, and sprint report") introduced
   three regressions, all repaired in a follow-up commit:
@@ -191,7 +202,7 @@ match the provider's published reference; it cannot prove the provider accepts t
 | xReserve | Attestation (burn tx is trigger) + destination-release observation | Release model corrected (G-08); `observeDestinationRelease` fail-closed stub (`xreserveAdapter.js:217-238`) | None — external settlement surface UNVERIFIED | No credentials / sandbox access; surface returns `xreserve.unverified` by design |
 | Yellow Card | Sends submit / payout-status / lookup / webhook; `YcHmacV1` auth | `yellowcardAdapter.js`; 28 wire-contract tests; `docs/yellowcard-api-reference.md` | None — live/sandbox UNVERIFIED | No credentials (G-20); field precision (kobo vs decimal, `networkId`) unproven live |
 | **Flutterwave** | **v3 Transfers submit / lookup / health; `verif-hash` webhook. USDC→wallet, NOT an NGN payout** | `flutterwaveAdapter.js`; 22 wire-contract + 24 webhook tests; `docs/flutterwave-api-reference.md` (stub) | **None — live/sandbox UNVERIFIED** | No credentials; reference doc is a prompt-derived stub (P-4); field semantics inferred (recipient-receives vs merchant-debited); `GET /v3/balances` unconfirmed; `verif-hash` has no integrity or replay protection |
-| **Breet** | **NGN local-fiat payout adapter; wire-contract tested. Webhook verifier DEFERRED** | `src/services/bos/breetAdapter.js`; `config/breet-banks.json`; 8 wire-contract + 2 provider-config tests | **None — live/sandbox UNVERIFIED** | No credentials; webhook verifier abandoned after breaking existing Flutterwave/Yellow Card routes — must be re-attempted as isolated, additive-only code |
+| **Breet** | **NGN local-fiat payout adapter; wire-contract tested. Webhook verifier branch present + tested; isolated `/breet` route added (Sprint Breet Webhook)** | `src/services/bos/breetAdapter.js`; `config/breet-banks.json`; `webhookVerifier.js:110-129` + `test/unit/breet-webhook.test.js` + `test/unit/breet-webhook-route.test.js`; 8 wire-contract + 2 provider-config tests | **None — live/sandbox UNVERIFIED; webhook payload shape not captured** | No live sandbox webhook capture — mock-trade trigger unreachable with the provided credentials; Breet docs disagree on `X-Breet-Env` (backlog P-8) |
 
 Any adapter movement to SANDBOX-VERIFIED requires credentials, a repeatable
 auth → submit → status → webhook loop (G-20), and a claim update in
