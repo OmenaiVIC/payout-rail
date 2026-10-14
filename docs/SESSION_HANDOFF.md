@@ -10,20 +10,42 @@ Payout Rail is an open-source orchestration layer that connects Stacks applicati
 on-chain settlement to local fiat payouts in emerging markets. Repository:
 https://github.com/OmenaiVIC/payout-rail
 
-## Current repository state (as of 2026-10-12)
+## Current repository state (as of 2026-10-14)
 
-- Local HEAD = origin/main = `e74444b`. Everything is pushed. Working tree clean.
-- Test suite: 259 tests, 258 pass, 0 fail, 1 skip (the Postgres-gated integration case).
+- Local HEAD = origin/main = `b32afc1`. Everything is pushed. Working tree clean.
+- Test suite: 268 tests, 267 pass, 0 fail, 1 skip (the Postgres-gated integration case).
   `npm test` is the source of truth; run it before trusting any count.
 - Recent commits (newest first):
-  - `3c4eeac` docs(multi-corridor-plan): refresh stale test count and adapter count
-  - `4cecd45` docs(prompts): unescape markdown so prompt library renders on GitHub
-  - `b6798aa` docs: unescape markdown in grant application and strategy docs
-  - `a9ddf31` docs: unescape markdown in top-level strategy and reference docs
-  - `798321b` docs(commercial-model): add Breet to Key Partners and partner-role honesty
-  - `1e1fff7` docs(claims-register): add Breet provider claims (§5.2) and summary entries
-  - `e5646a2` docs(readme): document Breet adapter; refresh stale test counts
-  - `a0fd367` docs(architecture): document Breet adapter in the boundary summary
+  - `b32afc1` docs(provider-adapters): correct stale Breet credential claim
+  - `0861010` docs: add Sprint Breet Webhook report
+  - `5856884` docs: correct stale "no Breet verifier branch" claims
+  - `ec08dfc` feat: add isolated POST /api/bos/webhooks/breet route (GREEN)
+  - `923721a` test: add failing Breet webhook route tests (RED)
+  - `3345d30` docs: add Sprint Breet Webhook plan
+  - `eeeb1f7` docs(session-handoff): correct HEAD to e74444b
+
+## Sprint Breet Webhook: COMPLETE
+
+The Breet webhook verifier sprint is done. Six commits (`3345d30` → `b32afc1`),
++9 tests (259 → 268). Deliverables:
+
+- **Route added:** `POST /api/bos/webhooks/breet` in `src/routes/webhooks.js`,
+  isolated, additive-only. Existing `webhookVerifier.js` and
+  `disbursementService.js` are byte-for-byte unchanged.
+- **Verifier:** the Breet branch already existed in `webhookVerifier.js`
+  (`getBreetSecret()`, `verifyBreetWebhook`, `case 'breet'` dispatch). The
+  prior repair `9f7bd7d` reverted only the route; the verifier survived intact.
+- **Response body:** `{ processed: true, advanced: false, reason: 'breet webhook
+  verified; payload resolution and state advance deferred to P-1' }`.
+- **Failure envelope:** mirrors Flutterwave — `{ processed: false, reason }` on 401.
+- **Cross-talk guard:** verif-hash must NOT authenticate `/breet`; x-webhook-secret
+  must NOT authenticate `/flutterwave` or `/yellowcard`.
+
+**Sandbox validation: NOT PERFORMED.** Breet's mock-trade trigger is unreachable
+for this account tier (returns "wallet not found" despite an active, verified
+wallet; Breet's own docs contradict each other on the required `X-Breet-Env` value
+for that endpoint). The payload shape is therefore UNVERIFIED against a real
+delivery. Tracked as backlog **P-8**.
 
 ## Task 1 — five Breet docs: COMPLETE
 
@@ -38,12 +60,11 @@ All five docs now document the Breet adapter:
 ## Markdown-escape cleanup: COMPLETE
 
 21 docs were stored with escaped markdown (`\#`, `\*\*`, `\|`, etc.) and rendered as
-plain text on GitHub. They were unescaped across four commits (three batches plus the
-`COMMERCIAL_MODEL.md` lead-in). Deliberately untouched:
+plain text on GitHub. They were unescaped across four commits. Deliberately untouched:
 
 - `docs/CLAIMS_REGISTER.md` — one `\|` inside a code span is load-bearing.
-- `docs/prompts/01_PROMPT_0A_EXTRACTION.md` — only `\.` and `\_` escapes; script
-  doesn't touch those, file is unchanged and consistent.
+- `docs/prompts/01_PROMPT_0A_EXTRACTION.md` — only `\.` and `\_` escapes; the
+  unescape script does not touch those, file is unchanged and consistent.
 
 ## What was repaired on 2026-10-09 / 2026-10-10
 
@@ -68,21 +89,15 @@ Also: `classifyError` in `breetAdapter.js` was relaxed so a plain
 
 ## What is still incomplete
 
-**Breet webhook verifier — stale claim corrected (Sprint Breet Webhook).** A
-previous revision of this handoff stated Breet "has no verifier branch and no
-route." That was half false. The Breet **verifier branch already exists and is
-tested**: `getBreetSecret()` (`webhookVerifier.js:10`), `verifyBreetWebhook`
-(`:110-129`), the `case 'breet'` dispatch (`:142-143`), and the export (`:154`),
-covered by `test/unit/breet-webhook.test.js`. The prior attempt (`3903653`) broke
-the existing Flutterwave and Yellow Card routes; the revert (`9f7bd7d`) removed the
-Breet **route** but left the verifier branch intact. Only the route was missing,
-and it is now added as isolated, additive-only code in `src/routes/webhooks.js` —
-no existing function or route in `webhooks.js` or `webhookVerifier.js` was
-modified. (Live sandbox webhook capture remains UNVERIFIED — see backlog P-8.)
+**Live Breet sandbox webhook capture (P-8).** The route and verifier are tested
+against a synthetic fixture; a real Breet-sandbox-originated delivery has not been
+captured. Unblocking it needs either (a) Breet support clarifying the mock-trade
+`X-Breet-Env` requirement, or (b) a real sandbox deposit. Small follow-up.
 
 **Provider routing (P-1) is not implemented.** `PAYOUT_PROVIDER` selects the
 adapter at the config layer only; the payout leg remains hard-wired to
-`ctx.adapters.yellowcard`.
+`ctx.adapters.yellowcard`. This blocks the Breet route from advancing the state
+machine (its `advanced: false` response is by design, not a bug).
 
 ## Process notes learned this session
 
@@ -101,6 +116,10 @@ adapter at the config layer only; the payout leg remains hard-wired to
 - **The audit prompt works.** When unsure what an agent changed, ask it to
   enumerate files via `git status --short`, then verify with
   `git --no-pager diff`. Do not accept a prose summary as evidence.
+- **RED commits stay local; push RED+GREEN together.** The workflow's
+  per-commit gate protects `origin/main` from ever carrying a failing suite.
+  TDD requires the RED commit in local history; it does not require pushing it.
+  This was resolved during Sprint Breet Webhook and worked correctly.
 - **Markdown-unescape method.** A PowerShell function (`Unescape-Md`) walks each
   file line-by-line, skips fenced code blocks and inline code spans, and unescapes
   only `\#`, `\*\*`, line-start `\.`, line-start `\- `, and standalone `\---`.
@@ -118,6 +137,8 @@ adapter at the config layer only; the payout leg remains hard-wired to
 - Do not modify CineX (a separate protected source product).
 - Fail closed. Never fabricate.
 - Verify claims against actual files. Do not trust agent self-reports.
+- No secret value in any test, fixture, log, or commit. `.env` is gitignored;
+  reference credentials via `process.env.<NAME>` by name only.
 
 ## What the next session needs to do
 
@@ -125,20 +146,30 @@ adapter at the config layer only; the payout leg remains hard-wired to
 
 Candidate directions, to decide together:
 
-- **Breet webhook verifier** as a focused sprint with a strict constraint: do not
-  modify any existing function or route in `webhooks.js` or `webhookVerifier.js`.
-  Add only new, isolated code. Must include a test that verifies the Yellow Card
-  and Flutterwave routes still work (a regression guard).
-- **Sprint 8a/8b/8c** for the Stacks Endowment grant evidence package.
-- **Sprint 9** for the commercial model.
+- **Sprint 8a/8b/8c** — Stacks Endowment grant evidence package.
+- **Sprint 9** — commercial model.
+
+Recommended skill sets from `docs/SKILLS.md`:
+
+- **Sprint 8:** `grant-writing`, `mdcp`, `strategy-doc`, `design-doc`
+- **Sprint 9:** `strategy-doc`, `grant-writing`, `mdcp`
 
 Update this file when a direction is chosen.
+
+## Outstanding housekeeping
+
+- **Rotate Breet sandbox credentials.** The App Secret, Webhook Secret, and a
+  webhook.site URL appeared in a chat transcript. Regenerate them from the Breet
+  dashboard and update `.env` before the next Breet-related work.
+- **Email Breet support** about the mock-trade doc contradiction (`sandbox` vs
+  `development` for `X-Breet-Env`) and the "wallet not found" behavior on an
+  active wallet. Unblocks P-8.
 
 ## Historical note — do not treat as current
 
 An earlier handoff (kept outside the repo) stated "253 tests, 252 pass, 0 fail,
 1 skip" and "local HEAD is 12+ commits ahead of origin/main." Neither was true
-of the committed tree at any point in the last session. The committed tree at
-the start of that session was 230 tests, 221 pass, 8 fail, 1 skip, because
-commit `3903653` broke two test files at import. The repaired and current state
-is 259 tests, 258 pass, 0 fail, 1 skip, fully pushed.
+of the committed tree at any point. The committed tree at the start of that
+session was 230 tests, 221 pass, 8 fail, 1 skip, because commit `3903653` broke
+two test files at import. The repaired and current state is 268 tests, 267 pass,
+0 fail, 1 skip, fully pushed.
