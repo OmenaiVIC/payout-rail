@@ -255,3 +255,32 @@ class **D** (backlog). None implemented.
   disbursement, **not** an NGN bank payout; a separate endpoint is required and is not verified offline.
 - **Suggested fix direction:** identify and wire the off-ramp endpoint in a future sprint, then run the
   P-6-style verification loop before any claim beyond `IMPLEMENTED + TESTED`.
+
+---
+
+## Sprint Breet Webhook additions (Breet webhook route — deferred verification)
+
+Deferred per `docs/SPRINT_BREET_WEBHOOK_PLAN.md` §8 (revised Step 0). Class **D** (backlog):
+documentation of a deferred verification, not built.
+
+### P-8 — Obtain a real Breet webhook capture and upgrade the route's fixture from synthetic to verified
+
+- **Status:** POSTPONED — **D**. The Breet `/breet` webhook route ships with a **synthetic,
+  UNVERIFIED** fixture: no live Breet delivery has been captured.
+- **Why deferred:** Breet's sandbox mock-trade trigger is unreachable with the provided
+  credentials — `sandbox` + `asset="TRX_TEST"` → **404 "wallet not found"** (the wallet exists
+  per `GET /trades/wallets`, `isActive=true`); `sandbox` + `asset=<asset id>` → **500-class**;
+  `development` + `asset="TRX_TEST"` → **500-class**; `development` elsewhere → **401 "wrong
+  app id and secret combination"**. Breet's own docs contradict each other on the required
+  `X-Breet-Env` value. This is a Breet-side blocker, not ours.
+- **What is UNVERIFIED:** the webhook payload shape(s) for the documented events, and whether
+  Breet actually emits `x-webhook-secret` on real deliveries (and its scope, per-merchant vs
+  per-event). `docs/breet-api-reference.md:83-87` already lists these as UNVERIFIED.
+- **Suggested fix direction:** once Breet support resolves the mock-trade trigger (or a real
+  deposit webhook can be delivered to a capture URL), replay one captured request against
+  `POST /api/bos/webhooks/breet` with `BREET_WEBHOOK_SECRET`, store the sanitized shape (secret
+  value redacted) as a fixture, and rewrite `test/unit/breet-webhook-route.test.js` test 4 to
+  assert against the captured shape. No route change is expected — the route does not parse
+  fields while P-1 is deferred.
+- **Resurrect if:** a live Breet sandbox delivery becomes obtainable, or the route gains field
+  parsing when P-1 lands (the captured shape would then become load-bearing).
