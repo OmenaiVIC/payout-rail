@@ -20,7 +20,7 @@
 
 import { Router } from 'express';
 import { handleYellowCardWebhook, handleFlutterwaveWebhook } from '../services/bos/disbursementService.js';
-import { verifyYellowCardWebhook, verifyFlutterwaveWebhook } from '../services/bos/webhookVerifier.js';
+import { verifyYellowCardWebhook, verifyFlutterwaveWebhook, verifyBreetWebhook } from '../services/bos/webhookVerifier.js';
 import { requireApiToken } from './disbursements.js';
 
 const router = Router();
@@ -41,6 +41,15 @@ function verifyFlutterwaveRequest(req) {
     return { valid: false, reason: 'raw_body_unavailable' };
   }
   return verifyFlutterwaveWebhook(rawBody, req.headers);
+}
+
+/** Same guard, Breet scheme: requires a raw buffer, then the x-webhook-secret compare. */
+function verifyBreetRequest(req) {
+  const rawBody = req.rawBody;
+  if (!Buffer.isBuffer(rawBody)) {
+    return { valid: false, reason: 'raw_body_unavailable' };
+  }
+  return verifyBreetWebhook(rawBody, req.headers);
 }
 
 /**
@@ -115,6 +124,44 @@ router.post('/flutterwave', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[bos:webhook] Flutterwave webhook failed:', err.message);
+    res.status(500).json({ processed: false, error: err.message });
+  }
+});
+
+/**
+ * POST /breet — Breet payout status webhook
+ * Called by Breet when a payout reaches a terminal state.
+ *
+ * ⚠ Verified with `x-webhook-secret`, a STATIC SHARED SECRET plain-string
+ * comparison — NOT a per-body HMAC. It authenticates the sender only: it provides
+ * no payload integrity, so anyone holding BREET_WEBHOOK_SECRET can forge an
+ * arbitrary payload, and it provides no replay protection, so a captured request
+ * is replayable forever.
+ *
+ * This route deliberately does NOT parse fields, resolve a target, advance the
+ * state machine, or write evidence. Payload resolution and the state advance are
+ * deferred to P-1 (provider routing); this sprint proves only that the isolated
+ * route verifies and acknowledges truthfully. The load-bearing duplicate control,
+ * when advancing lands, is the local `idempotency_key` UNIQUE constraint
+ * (migrations/001_bos_schema.sql:43), NOT this signature.
+ *
+ * Fails CLOSED: an unset BREET_WEBHOOK_SECRET rejects every delivery with 401.
+ * Never log BREET_WEBHOOK_SECRET or the x-webhook-secret header value.
+ */
+router.post('/breet', async (req, res) => {
+  try {
+    const verification = verifyBreetRequest(req);
+    if (!verification.valid) {
+      return res.status(401).json({ processed: false, reason: verification.reason || 'invalid_signature' });
+    }
+
+    res.json({
+      processed: true,
+      advanced: false,
+      reason: 'breet webhook verified; payload resolution and state advance deferred to P-1',
+    });
+  } catch (err) {
+    console.error('[bos:webhook] Breet webhook failed:', err.message);
     res.status(500).json({ processed: false, error: err.message });
   }
 });
