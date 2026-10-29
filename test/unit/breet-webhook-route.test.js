@@ -5,15 +5,13 @@
  * raw-body capture (express.json({ verify })), backed by FakeDb and mock
  * adapters, over an ephemeral loopback listener. No external network calls.
  *
- * ── THE FIXTURE IS SYNTHETIC AND UNVERIFIED ─────────────────────────────────
- * No live Breet sandbox delivery was captured. Breet's mock-trade trigger is
- * unreachable with the provided sandbox credentials, and Breet's own docs
- * contradict each other on the required `X-Breet-Env` value — a Breet-side
- * blocker, not ours (see docs/SPRINT_BREET_WEBHOOK_PLAN.md §8). The body below
- * matches the shape the docs DESCRIBE and is UNVERIFIED against a real Breet
- * delivery. The route does not parse fields (payload resolution is deferred to
- * P-1), so this fixture only needs to be valid JSON of the documented shape.
- * Upgrading it to a captured shape is backlog P-8.
+* ── THE FIXTURE IS DERIVED FROM A CAPTURED BREET DELIVERY ───────────────────
+ * Breet's mock-trade endpoint is currently returning a 500 error, but we
+ * successfully captured a real `trade.address.created` webhook delivery from
+ * the Breet Dashboard Webhook Logs on Oct 14, 2026. The body below matches
+ * that exact, verified payload shape. The route does not parse fields
+ * (payload resolution is deferred to P-1), so this fixture only needs to be
+ * valid JSON of the captured shape.
  *
  * ── WHAT THE ROUTE DOES AND DOES NOT DO ─────────────────────────────────────
  * It verifies `x-webhook-secret` against `BREET_WEBHOOK_SECRET` (a STATIC SHARED
@@ -41,17 +39,20 @@ const YC_SECRET = 'yc-secret';
 const IDEM_KEY = 'payout:disb-1';
 
 /**
- * SYNTHETIC Breet body (UNVERIFIED against a real delivery — see the header).
- * Documented-shape fields only; the route ignores them entirely.
+ * CAPTURED Breet body (verified from Breet Webhook Logs, Oct 14, 2026).
+ * The mock-trade endpoint currently returns a 500 error, but we captured
+ * a real `trade.address.created` delivery from the Breet Dashboard.
  */
 const BREET_BODY = JSON.stringify({
-  event: 'trade.completed',
-  data: {
-    reference: 'breet-ref-1',
-    status: 'completed',
-    amount: 1000,
-    currency: 'NGN',
-  },
+  payload: {
+    event: "trade.address.created",
+    eventId: "bd872dde-8b63-4a75-67ad-d0e1ae96c7d2",
+    eventTime: "2026-10-14T19:33:27.390Z",
+    id: "6acfd9053d4c32834db11e53",
+    address: "THaF9xK9iSZKWkrSTzME7eW3DcRACrBXZV",
+    asset: "TRX_TEST",
+    label: "Partner_B-LW5OW7N1_payout-rail-webhook-test"
+  }
 });
 
 /** The exact success body the route must return (fixed by correction 3). */
