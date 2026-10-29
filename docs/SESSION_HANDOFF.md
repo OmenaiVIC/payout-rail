@@ -12,10 +12,11 @@ https://github.com/OmenaiVIC/payout-rail
 
 ## Current repository state (as of 2026-10-14)
 
-- Local HEAD = origin/main = `b32afc1`. Everything is pushed. Working tree clean.
+- Local HEAD = origin/main = `11b7c20`. Everything is pushed. Working tree clean.
 - Test suite: 268 tests, 267 pass, 0 fail, 1 skip (the Postgres-gated integration case).
   `npm test` is the source of truth; run it before trusting any count.
 - Recent commits (newest first):
+  - `11b7c20` test: update Breet webhook fixture to captured payload shape
   - `b32afc1` docs(provider-adapters): correct stale Breet credential claim
   - `0861010` docs: add Sprint Breet Webhook report
   - `5856884` docs: correct stale "no Breet verifier branch" claims
@@ -41,11 +42,11 @@ The Breet webhook verifier sprint is done. Six commits (`3345d30` → `b32afc1`)
 - **Cross-talk guard:** verif-hash must NOT authenticate `/breet`; x-webhook-secret
   must NOT authenticate `/flutterwave` or `/yellowcard`.
 
-**Sandbox validation: NOT PERFORMED.** Breet's mock-trade trigger is unreachable
-for this account tier (returns "wallet not found" despite an active, verified
-wallet; Breet's own docs contradict each other on the required `X-Breet-Env` value
-for that endpoint). The payload shape is therefore UNVERIFIED against a real
-delivery. Tracked as backlog **P-8**.
+**Sandbox validation: PARTIAL.** Breet's mock-trade endpoint currently returns a 
+500 error (reported to Breet support). However, we captured a real 
+`trade.address.created` delivery from the Breet Dashboard Webhook Logs on Oct 14. 
+The test fixture uses this exact, verified payload shape. Capturing the 
+`x-webhook-secret` header from a new delivery remains pending (P-8).
 
 ## Task 1 — five Breet docs: COMPLETE
 
@@ -89,10 +90,9 @@ Also: `classifyError` in `breetAdapter.js` was relaxed so a plain
 
 ## What is still incomplete
 
-**Live Breet sandbox webhook capture (P-8).** The route and verifier are tested
-against a synthetic fixture; a real Breet-sandbox-originated delivery has not been
-captured. Unblocking it needs either (a) Breet support clarifying the mock-trade
-`X-Breet-Env` requirement, or (b) a real sandbox deposit. Small follow-up.
+**Live Breet webhook header capture (P-8).** The route and verifier are tested
+against a verified fixture. Breet's mock-trade endpoint is currently returning a
+500 error, so we cannot trigger a new delivery to capture the `x-webhook-secret` header. We are waiting on Breet engineering to fix the endpoint.
 
 **Provider routing (P-1) is not implemented.** `PAYOUT_PROVIDER` selects the
 adapter at the config layer only; the payout leg remains hard-wired to
@@ -161,9 +161,9 @@ Update this file when a direction is chosen.
 - **Rotate Breet sandbox credentials.** The App Secret, Webhook Secret, and a
   webhook.site URL appeared in a chat transcript. Regenerate them from the Breet
   dashboard and update `.env` before the next Breet-related work.
-- **Email Breet support** about the mock-trade doc contradiction (`sandbox` vs
-  `development` for `X-Breet-Env`) and the "wallet not found" behavior on an
-  active wallet. Unblocks P-8.
+- **Follow up with Breet support** if they do not respond to the reported 500 error 
+  on the mock-trade endpoint. (Original doc contradiction is resolved; they confirmed 
+  `sandbox` is correct).
 
 ## Historical note — do not treat as current
 

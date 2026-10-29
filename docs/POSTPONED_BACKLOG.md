@@ -263,24 +263,10 @@ class **D** (backlog). None implemented.
 Deferred per `docs/SPRINT_BREET_WEBHOOK_PLAN.md` §8 (revised Step 0). Class **D** (backlog):
 documentation of a deferred verification, not built.
 
-### P-8 — Obtain a real Breet webhook capture and upgrade the route's fixture from synthetic to verified
+### P-8 — Complete Breet webhook header capture
 
-- **Status:** POSTPONED — **D**. The Breet `/breet` webhook route ships with a **synthetic,
-  UNVERIFIED** fixture: no live Breet delivery has been captured.
-- **Why deferred:** Breet's sandbox mock-trade trigger is unreachable with the provided
-  credentials — `sandbox` + `asset="TRX_TEST"` → **404 "wallet not found"** (the wallet exists
-  per `GET /trades/wallets`, `isActive=true`); `sandbox` + `asset=<asset id>` → **500-class**;
-  `development` + `asset="TRX_TEST"` → **500-class**; `development` elsewhere → **401 "wrong
-  app id and secret combination"**. Breet's own docs contradict each other on the required
-  `X-Breet-Env` value. This is a Breet-side blocker, not ours.
-- **What is UNVERIFIED:** the webhook payload shape(s) for the documented events, and whether
-  Breet actually emits `x-webhook-secret` on real deliveries (and its scope, per-merchant vs
-  per-event). `docs/breet-api-reference.md:83-87` already lists these as UNVERIFIED.
-- **Suggested fix direction:** once Breet support resolves the mock-trade trigger (or a real
-  deposit webhook can be delivered to a capture URL), replay one captured request against
-  `POST /api/bos/webhooks/breet` with `BREET_WEBHOOK_SECRET`, store the sanitized shape (secret
-  value redacted) as a fixture, and rewrite `test/unit/breet-webhook-route.test.js` test 4 to
-  assert against the captured shape. No route change is expected — the route does not parse
-  fields while P-1 is deferred.
-- **Resurrect if:** a live Breet sandbox delivery becomes obtainable, or the route gains field
-  parsing when P-1 lands (the captured shape would then become load-bearing).
+- **Status:** POSTPONED — **D**. The route's test fixture is now updated to a real, verified payload shape. The remaining task is capturing the `x-webhook-secret` header.
+- **What is VERIFIED:** The payload shape is verified. We successfully captured a real `trade.address.created` delivery from the Breet Dashboard Webhook Logs on Oct 14, 2026. The test fixture in `test/unit/breet-webhook-route.test.js` now uses this exact, captured shape.
+- **What is UNVERIFIED:** Capturing the actual `x-webhook-secret` header value from a live delivery. 
+- **Why deferred:** Breet's sandbox mock-trade trigger is currently returning a **500 Internal Server Error** (reported to Breet support with trace ID `9ce2ff002d83f4cea687f62fcc048e8e`). Until Breet fixes their endpoint, we cannot generate a new webhook to inspect the headers.
+- **Suggested fix direction:** Once Breet support resolves the 500 error, trigger the mock-trade, capture the headers at a `webhook.site` URL, and document the exact header structure in the route tests.
