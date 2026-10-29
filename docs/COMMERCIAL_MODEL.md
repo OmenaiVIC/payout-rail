@@ -94,82 +94,59 @@ Emerging-market applications — marketplaces, payroll systems, remittance produ
 
 A provider-agnostic orchestration layer that turns settled on-chain value into reliable local fiat payouts, with audit-grade evidence and deterministic idempotency built in.
 
-Differentiators:
-
-\- Provider-agnostic
-
-\- Audit-grade evidence
-
-\- Open-source
-
-\- Corridor-agnostic
-
 ### Channels
 
-\- **Awareness:** GitHub repository, Stacks Endowment grants, Zero Authority bounties, Let Africa Build's pipeline, X community
-
-\- **Evaluation:** README, runnable demo, integration guide, external integrator example
-
-\- **Purchase:** The v1 public API — free to use, self-hosted
-
-\- **Delivery:** Self-hosted via the repository
-
-\- **After-sales:** GitHub Issues, sprint reports, community support
+- **Awareness:** GitHub repository, Stacks Endowment grants, Zero Authority bounties, Let Africa Build's pipeline, X community
+- **Evaluation:** README, runnable demo, integration guide, external integrator example
+- **Purchase:** The v1 public API (Hosted Tier) or GitHub Clone (Open Source Tier)
+- **Delivery:** Self-hosted via the repository, or managed by Payout Rail
+- **After-sales:** GitHub Issues for community, dedicated Slack for paid tiers
 
 ### Customer Relationships
 
-Self-service and community-driven. No dedicated account manager for free users. Support through GitHub Issues (7-day response for non-critical, 72-hour for critical) and documentation. Co-creation through the Milestone 3 external testing program.
+Self-service for the open-source tier. Dedicated onboarding and support for the Managed Hosted tier. Co-creation through the Milestone 3 external testing program.
 
 ### Revenue Streams (Hypothesis — Not Validated)
 
-| Model | Mechanism | Status |
+Because Payout Rail is open-source and self-hostable, we do not charge a transaction fee on the core orchestration logic. Instead, we monetize the operational burden and compliance risk through three tiers:
 
-|---|---|---|
+**Tier 1: Open Source (Free)**
+- The developer clones the repo, runs it on their own infrastructure, and manages their own Postgres database and provider API keys.
+- **Target:** Early-stage Stacks apps and tinkerers.
 
-| Per-payout fee | 0.1–0.5% on settled volume for self-hosted users who want support | Hypothesis |
+**Tier 2: Hosted Orchestration (SaaS — $199/month)**
+- Payout Rail runs the infrastructure. The Stacks app just hits our API. We manage the uptime, the worker queues, the retry logic, and the database.
+- **Target:** Growing Stacks apps that want to pay people without managing a DevOps stack.
 
-| Hosted orchestration | Managed Payout Rail for teams that do not want to run infrastructure | Hypothesis |
+**Tier 3: Audit & Evidence Add-on ($99/month)**
+- The Stacks app gets access to a hosted dashboard that generates immutable, cryptographic PDF settlement receipts. This is for their accountants, auditors, and investors.
+- **Target:** Any app moving more than $10k/month that needs to prove to their auditors exactly where the money went.
 
-| Enterprise support | SLA and support contracts for high-volume integrators | Hypothesis |
-
-| Grant-funded continuation | Pre-revenue phase funded by grants | Current |
-
-**No revenue exists today.** Sprint 9 formalizes and tests the revenue hypothesis.
+**No revenue exists today.** Sprint 9 formalizes and tests this revenue hypothesis.
 
 ### Key Resources
 
-\- **Intellectual:** The orchestration core, the evidence chain, the reconciliation layer, the adapter pattern, the settlement receipt generator
-
-\- **Human:** Victor Omenai (lead), McDaniells Albert (co-maintainer), Jacob Momoh (senior advisor)
-
-\- **Financial:** Zero infrastructure costs. No hosted services, no paid dependencies
+- **Intellectual:** The orchestration core, the evidence chain, the reconciliation layer, the adapter pattern, the settlement receipt generator
+- **Human:** Victor Omenai (lead), McDaniells Albert (co-maintainer), Jacob Momoh (senior advisor)
+- **Financial:** Zero infrastructure costs for the open-source tier. Hosted tier costs scale linearly with usage.
 
 ### Key Activities
 
-\- **Engineering:** Adapter maintenance, provider integration, evidence integrity, reconciliation correctness, release management
-
-\- **Community:** Sprint reports, external developer support, bounty coordination via Zero Authority
-
-\- **Partnership:** Provider relationships, ecosystem engagement, grant reporting
+- **Engineering:** Adapter maintenance, provider integration, evidence integrity, reconciliation correctness, release management
+- **Community:** Sprint reports, external developer support, bounty coordination via Zero Authority
+- **Partnership:** Provider relationships, ecosystem engagement, grant reporting
 
 **Not activities:** Payout Rail does not hold funds, custody keys, process fiat, or act as a money transmitter.
 
 ### Key Partners
 
 | Partner | Role |
-
 |---|---|
-
 | Yellow Card | First and primary payout provider for the NGN corridor. Licensed, regulated. The pipeline payout leg is hard-wired to Yellow Card (14 sites); Flutterwave is not an NGN off-ramp today. |
-
 | Stacks Endowment | Grant funder. Validates the infrastructure thesis. |
-
 | Zero Authority | Community engagement and external developer testing platform. |
-
 | Let Africa Build (LAB) | Developer pipeline and ecosystem outreach. |
-
 | CineX | First integrator. Proof of adoptability. |
-
 | Flutterwave | Second payout adapter (Sprint 12): v3 **USDC-to-wallet disbursement**, NOT an NGN bank payout (`docs/flutterwave-api-reference.md` §0). Wire-contract tested; **not routed from the pipeline** (backlog P-1); **sandbox/live UNVERIFIED** (no credentials). Commercial potential is as a corridor option, not yet an active off-ramp partner. Off-ramp access requires an approved F4B production account (completed KYC); the sandbox cannot access it (confirmed 2026-10-02). |
 | Breet | Third payout adapter (Sprint 13): NGN local-fiat off-ramp (add bank → withdraw to bank). Wire-contract tested; **webhook verifier deferred** (a focused sprint must add it as isolated, additive code); **not routed from the pipeline** (backlog P-1); **sandbox/live UNVERIFIED** (no credentials, G-20). |
 
@@ -179,24 +156,17 @@ Self-service and community-driven. No dedicated account manager for free users. 
 
 ### Cost Structure
 
-People-first. The cost structure is dominated by engineering time.
+People-first, cloud-second. The cost structure is dominated by engineering time.
 
 | Cost | Nature |
-
 |---|---|
-
 | Engineering hours | Fixed per milestone |
-
 | Senior review | Fixed |
-
+| Infrastructure (Hosted Tier) | Variable (serverless/cloud functions) |
 | Documentation and community | Fixed |
-
-| Infrastructure | Zero |
-
 | Contingency | Fixed reserve |
 
-**No variable costs at scale.** Adding a corridor means adding a configuration entry. Adding an integrator costs nothing until support is required.
-
+**No variable costs at scale for the open-source tier.** Adding a corridor means adding a configuration entry. 
 ---
 
 ## 6. Long-term strategic options: vertical integration
