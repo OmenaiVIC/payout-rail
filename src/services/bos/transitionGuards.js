@@ -6,6 +6,7 @@
 import { DisbursementState, ReleaseStatus } from './types.js';
 import { runAllGates } from './payoutGates.js';
 import { TwoPersonApproval } from './twoPersonApproval.js';
+import { resolvePayoutAdapter, resolvePayoutProvider } from './bridgeAdapterFactory.js';
 
 const twoPersonApproval = new TwoPersonApproval();
 
@@ -175,12 +176,25 @@ export async function destinationReleasedForPayout(disbursement, ctx) {
  * Guard: Yellow Card has confirmed the NGN payout arrived
  */
 export async function isPayoutConfirmed(disbursement, ctx) {
-  const ref = await _getExternalRef(ctx, disbursement.id, 'yellowcard', 'payout_id');
+  const provider = resolvePayoutProvider(ctx?.payoutProvider);
+  let ref = await _getExternalRef(ctx, disbursement.id, provider, 'payout_id');
+  let adapter = ref ? resolvePayoutAdapter(ctx) : null;
+
+  if (!ref && provider !== 'yellowcard') {
+    ref = await _getExternalRef(ctx, disbursement.id, 'yellowcard', 'payout_id');
+    if (ref) {
+      const issuer = ref.metadata?.provider;
+      adapter = issuer
+        ? ctx.adapters[issuer]
+        : ctx.adapters.yellowcard; // legacy pre-P-1 row: must poll under the provider that issued this payout_id.
+    }
+  }
+
   if (!ref) {
     return { ok: false, error_code: 'u8231', reason: 'No payout external_ref found' };
   }
   try {
-    const status = await ctx.adapters.yellowcard.lookupSend(ref.identifier_value);
+    const status = await adapter.lookupSend(ref.identifier_value);
     if (status.status === 'completed') {
       return { ok: true, details: { payout_id: ref.identifier_value } };
     }
