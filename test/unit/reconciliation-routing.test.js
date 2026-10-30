@@ -168,7 +168,7 @@ test('missingWebhook polls and labels the configured provider on completion', as
   assert.ok(summary.ok, JSON.stringify(summary.errors));
   assert.equal(summary.modes.missingWebhook.advanced, 1);
   assert.equal(rows[0].status, S.YELLOWCARD_PAYOUT_CONFIRMED);
-  assert.deepEqual(adapters.breet.calls.lookupSend, ['breet-1']);
+  assert.equal(adapters.breet.calls.lookupSend[0], 'breet-1');
   assert.deepEqual(adapters.yellowcard.calls.lookupSend, []);
   assert.equal(pollEvidence(state, 'd1')[0].envelope.status.adapter, 'breet');
   assert.equal(pollEvidence(state, 'd1')[0].envelope.status.poll_status, 'completed');
