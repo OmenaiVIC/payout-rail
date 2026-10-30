@@ -16,6 +16,7 @@ import { DisbursementState as S } from './types.js';
 import { executeTransition } from './stateMachine.js';
 import { STATE_SLA_MS } from './stuckStateReaper.js';
 import { recordStatusSnapshot, recordPollResult, recordReconciliationDetection } from './evidenceCollector.js';
+import { resolvePayoutAdapter, resolvePayoutProvider } from './bridgeAdapterFactory.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration / State
@@ -35,7 +36,7 @@ const SCAN_PAYOUT_CANDIDATES_SQL = `
   SELECT d.*, er.identifier_value AS payout_id
   FROM disbursements d
   LEFT JOIN external_refs er ON er.disbursement_id = d.id
-    AND er.external_system = 'yellowcard' AND er.identifier_type = 'payout_id'
+    AND er.external_system = $2 AND er.identifier_type = 'payout_id'
   WHERE d.status = 'yellowcard_payout_submitted'
   ORDER BY d.created_at ASC
   LIMIT $1
@@ -208,6 +209,37 @@ function mergeStats(accum, delta) {
   }
 }
 
+/**
+ * Resolve the payout ref and the adapter that issued it.
+ * Configured provider first; a legacy pre-P-1 yellowcard row second, polled
+ * under the provider named by metadata.provider (or yellowcard).
+ */
+async function resolvePayoutLookup(db, d, provider) {
+  if (d.payout_id) {
+    return { payoutId: d.payout_id, provider, refSystem: provider, adapter: resolvePayoutAdapter(_ctx) };
+  }
+  if (provider === 'yellowcard') {
+    return { payoutId: null, provider, refSystem: provider, adapter: null };
+  }
+  const ref = await db.get(
+    `SELECT * FROM external_refs
+     WHERE disbursement_id = $1 AND external_system = $2 AND identifier_type = 'payout_id'`,
+    [d.id, 'yellowcard']
+  );
+  if (!ref) {
+    return { payoutId: null, provider, refSystem: provider, adapter: null };
+  }
+  const issuer = ref.metadata?.provider;
+  return {
+    payoutId: ref.identifier_value,
+    provider: issuer || 'yellowcard',
+    refSystem: 'yellowcard',
+    adapter: issuer
+      ? _ctx.adapters[issuer]
+      : _ctx.adapters.yellowcard, // legacy pre-P-1 row: must poll under the provider that issued this payout_id.
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Mode 1: missingWebhook (plan §5.1)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,10 +247,11 @@ function mergeStats(accum, delta) {
 async function missingWebhook(db, log, summary) {
   const mode = 'missingWebhook';
   const stats = { scanned: 0, routed: 0, advanced: 0, markedFailed: 0, errors: 0 };
+  const provider = resolvePayoutProvider(_ctx?.payoutProvider);
 
   let rows = [];
   try {
-    rows = await db.all(SCAN_PAYOUT_CANDIDATES_SQL, [SCAN_BATCH_SIZE]);
+    rows = await db.all(SCAN_PAYOUT_CANDIDATES_SQL, [SCAN_BATCH_SIZE, provider]);
   } catch (err) {
     stats.errors++;
     summary.errors.push({ mode, message: err.message });
@@ -227,7 +260,7 @@ async function missingWebhook(db, log, summary) {
 
   for (const d of rows || []) {
     stats.scanned++;
-    const payoutId = d.payout_id;
+    const { payoutId, provider: payoutProvider, adapter } = await resolvePayoutLookup(db, d, provider);
 
     if (!payoutId) {
       await escalate(db, log, summary, mode, d,
@@ -238,12 +271,12 @@ async function missingWebhook(db, log, summary) {
 
     let providerResult;
     try {
-      providerResult = await _ctx.adapters.yellowcard.lookupSend(payoutId);
+      providerResult = await adapter.lookupSend(payoutId);
     } catch (err) {
       // A provider that cannot be reached is a transient concern; record the
       // failed poll and let orphanedPayout handle not-found semantics.
       await recordPollResult({
-        db, disbursementId: d.id, adapter: 'yellowcard', method: 'lookupSend',
+        db, disbursementId: d.id, adapter: payoutProvider, method: 'lookupSend',
         externalId: payoutId, externalIdType: 'payout_id', status: 'error',
         advanceAction: null, log,
       });
@@ -254,7 +287,7 @@ async function missingWebhook(db, log, summary) {
 
     if (status === 'completed') {
       await recordPollResult({
-        db, disbursementId: d.id, adapter: 'yellowcard', method: 'lookupSend',
+        db, disbursementId: d.id, adapter: payoutProvider, method: 'lookupSend',
         externalId: payoutId, externalIdType: 'payout_id', status: 'completed',
         advanceAction: 'confirm', log,
       });
@@ -265,7 +298,7 @@ async function missingWebhook(db, log, summary) {
 
     if (status === 'failed') {
       await recordPollResult({
-        db, disbursementId: d.id, adapter: 'yellowcard', method: 'lookupSend',
+        db, disbursementId: d.id, adapter: payoutProvider, method: 'lookupSend',
         externalId: payoutId, externalIdType: 'payout_id', status: 'failed',
         advanceAction: 'mark_failed', log,
       });
@@ -279,7 +312,7 @@ async function missingWebhook(db, log, summary) {
     const heartbeat = d.last_heartbeat_at ? new Date(d.last_heartbeat_at).getTime() : NaN;
     const ageMs = Number.isFinite(heartbeat) ? _getNow().getTime() - heartbeat : Infinity;
     await recordPollResult({
-      db, disbursementId: d.id, adapter: 'yellowcard', method: 'lookupSend',
+      db, disbursementId: d.id, adapter: payoutProvider, method: 'lookupSend',
       externalId: payoutId, externalIdType: 'payout_id', status,
       advanceAction: null, log,
     });
@@ -460,10 +493,11 @@ async function timeoutEscalation(db, log, summary) {
 async function orphanedPayout(db, log, summary) {
   const mode = 'orphanedPayout';
   const stats = { scanned: 0, routed: 0, errors: 0 };
+  const provider = resolvePayoutProvider(_ctx?.payoutProvider);
 
   let rows = [];
   try {
-    rows = await db.all(SCAN_PAYOUT_CANDIDATES_SQL, [SCAN_BATCH_SIZE]);
+    rows = await db.all(SCAN_PAYOUT_CANDIDATES_SQL, [SCAN_BATCH_SIZE, provider]);
   } catch (err) {
     stats.errors++;
     summary.errors.push({ mode, message: err.message });
@@ -472,7 +506,7 @@ async function orphanedPayout(db, log, summary) {
 
   for (const d of rows || []) {
     stats.scanned++;
-    const payoutId = d.payout_id;
+    const { payoutId, refSystem, adapter } = await resolvePayoutLookup(db, d, provider);
 
     if (!payoutId) {
       await escalate(db, log, summary, mode, d,
@@ -484,7 +518,7 @@ async function orphanedPayout(db, log, summary) {
     let providerResult = null;
     let lookupError = null;
     try {
-      providerResult = await _ctx.adapters.yellowcard.lookupSend(payoutId);
+      providerResult = await adapter.lookupSend(payoutId);
     } catch (err) {
       lookupError = err;
     }
@@ -511,7 +545,7 @@ async function orphanedPayout(db, log, summary) {
     if (status === 'completed') {
       log?.info({ disbursement_id: d.id, payout_id: payoutId },
         'Payout recognized and completed — benign (owner reconciled by missingWebhook)');
-    } else if (await payoutRefMissing(db, d)) {
+    } else if (await payoutRefMissing(db, d, refSystem)) {
       await escalate(db, log, summary, mode, d,
         `payout ${payoutId} unmatchable: no external_ref on record`);
       stats.routed++;
@@ -529,11 +563,11 @@ function isNotFoundError(err) {
     || /404|not found/i.test(msg);
 }
 
-async function payoutRefMissing(db, d) {
+async function payoutRefMissing(db, d, provider) {
   const row = await db.get(
     `SELECT COUNT(*) AS n FROM external_refs
-     WHERE disbursement_id = $1 AND external_system = 'yellowcard' AND identifier_type = 'payout_id'`,
-    [d.id]
+     WHERE disbursement_id = $1 AND external_system = $2 AND identifier_type = 'payout_id'`,
+    [d.id, provider]
   );
   return Number(row?.n ?? 0) === 0;
 }
