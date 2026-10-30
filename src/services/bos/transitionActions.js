@@ -7,6 +7,7 @@
 import { DisbursementState, ReleaseStatus } from './types.js';
 import { USDCX_CONTRACT, PAYOUT_API_BASE_URL } from '../../config/chainConfig.js';
 import { recordTxHash, recordApiResponse, recordGateResult, recordPollResult, recordStatusSnapshot } from './evidenceCollector.js';
+import { resolvePayoutAdapter, resolvePayoutProvider } from './bridgeAdapterFactory.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action: runPreflightCheck
@@ -339,12 +340,13 @@ export async function recordReleaseObservedFailed(disbursement, ctx) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action: submitYellowCardPayout
+// Action: submitPayout
 // destination_release_confirmed → yellowcard_payout_submitted
-// Initiates NGN payout via Yellow Card
+// Initiates the NGN payout via the configured payout provider
 // ─────────────────────────────────────────────────────────────────────────────
-export async function submitYellowCardPayout(disbursement, ctx) {
-  const log = ctx.getLogger('transition:submitYellowCardPayout');
+export async function submitPayout(disbursement, ctx) {
+  const provider = resolvePayoutProvider(ctx?.payoutProvider);
+  const log = ctx.getLogger('transition:submitPayout');
   const db = ctx.getDb();
 
   const amount_ngn = disbursement.amount_ngn_expected;
@@ -353,53 +355,69 @@ export async function submitYellowCardPayout(disbursement, ctx) {
   }
 
   const recipient_type = deriveRecipientType(disbursement.ngn_recipient);
+  const adapter = resolvePayoutAdapter(ctx);
 
-  log.info({ id: disbursement.id, amount_ngn, recipient_type }, 'Submitting Yellow Card payout');
+  log.info({ id: disbursement.id, amount_ngn, recipient_type, provider }, 'Submitting payout');
 
-  const payout = await ctx.adapters.yellowcard.submitSend({
+  const payout = await adapter.submitSend({
     idempotency_key: `payout:${disbursement.id}`,
     amount: amount_ngn,
     currency: 'NGN',
     recipient_type,
     recipient: disbursement.ngn_recipient || {},
-    callback_url: `${PAYOUT_API_BASE_URL}/api/bos/webhooks/yellowcard`,
+    callback_url: `${PAYOUT_API_BASE_URL}/api/bos/webhooks/${provider}`,
   });
 
-  await upsertExternalRef(db, disbursement.id, 'yellowcard', 'payout_id', payout.send_id, {
+  await upsertExternalRef(db, disbursement.id, provider, 'payout_id', payout.send_id, {
     submitted_at: new Date().toISOString(),
     amount_ngn,
     exchange_rate: disbursement.exchange_rate || null,
+    provider,
     payout_data: payout,
   });
 
-  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: 'yellowcard', method: 'submitSend', response: payout });
+  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: provider, method: 'submitSend', response: payout });
 
-  log.info({ id: disbursement.id, payout_id: payout.send_id }, 'Yellow Card payout submitted');
-  return { payout_id: payout.send_id, amount_ngn };
+  log.info({ id: disbursement.id, payout_id: payout.send_id, provider }, 'Payout submitted');
+  return { payout_id: payout.send_id, amount_ngn, provider };
 }
+
+// Backwards-compatible alias: the state machine and older importers may still
+// name the action after its historical default provider.
+export const submitYellowCardPayout = submitPayout;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action: confirmYellowCardPayout
 // yellowcard_payout_submitted → yellowcard_payout_confirmed
-// Records Yellow Card payout confirmation
+// Records payout confirmation from the configured provider
 // ─────────────────────────────────────────────────────────────────────────────
 export async function confirmYellowCardPayout(disbursement, ctx) {
+  const provider = resolvePayoutProvider(ctx?.payoutProvider);
   const log = ctx.getLogger('transition:confirmYellowCardPayout');
   const db = ctx.getDb();
+  const adapter = resolvePayoutAdapter(ctx);
 
-  const ref = await getExternalRef(db, disbursement.id, 'yellowcard', 'payout_id');
-  const payout = await ctx.adapters.yellowcard.lookupSend(ref.identifier_value);
+  // Legacy rows were written under the historical default provider; fall back
+  // to that key so a provider switch does not orphan in-flight payouts.
+  const ref =
+    (await getExternalRef(db, disbursement.id, provider, 'payout_id')) ||
+    (provider === 'yellowcard'
+      ? null
+      : await getExternalRef(db, disbursement.id, 'yellowcard', 'payout_id'));
 
-  await upsertExternalRef(db, disbursement.id, 'yellowcard', 'payout_id', ref.identifier_value, {
+  const payout = await adapter.lookupSend(ref.identifier_value);
+
+  await upsertExternalRef(db, disbursement.id, provider, 'payout_id', ref.identifier_value, {
     ...ref.metadata,
     confirmed_at: new Date().toISOString(),
+    provider,
     payout_data: payout,
   });
 
-  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: 'yellowcard', method: 'lookupSend', response: payout });
+  await recordApiResponse({ db, disbursementId: disbursement.id, adapter: provider, method: 'lookupSend', response: payout });
 
-  log.info({ id: disbursement.id, payout_id: ref.identifier_value }, 'Yellow Card payout confirmed');
-  return { payout_id: ref.identifier_value };
+  log.info({ id: disbursement.id, payout_id: ref.identifier_value, provider }, 'Payout confirmed');
+  return { payout_id: ref.identifier_value, provider };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

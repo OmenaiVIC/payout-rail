@@ -141,7 +141,7 @@ const TRANSITIONS = new Map([
   [`${S.DESTINATION_RELEASE_CONFIRMED}→${S.YELLOWCARD_PAYOUT_SUBMITTED}`, {
     description: 'Initiate NGN payout via Yellow Card',
     guard:  guards.destinationReleasedForPayout,
-    action: actions.submitYellowCardPayout,
+    action: actions.submitPayout,
   }],
   [`${S.DESTINATION_RELEASE_CONFIRMED}→${S.FAILED}`, {
     description: 'Yellow Card payout initiation failed',
