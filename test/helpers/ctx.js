@@ -2,7 +2,8 @@
  * Test ctx builder.
  *
  * Mirrors the exact `bosCtx` object assembled by ensureInit() in
- * src/index.js: { getDb, adapters, recipientRegistry, emitEvent, getLogger }.
+ * src/index.js: { getDb, adapters, payoutProvider, getPayoutAdapter,
+ * recipientRegistry, emitEvent, getLogger }.
  *
  * Production builds adapters via the factory and a shared module-level pool.
  * Here every collaborator is injected so a test can run the pipeline fully
@@ -27,6 +28,7 @@ export function createSilentLogger() {
 export function createTestCtx({
   db = createFakeDb(),
   adapters = createMockAdapters(),
+  payoutProvider = 'yellowcard',
   recipientRegistry = createRecipientRegistry('permissive'),
   logger = createSilentLogger(),
   emitEvent,
@@ -35,6 +37,14 @@ export function createTestCtx({
   const ctx = {
     getDb: () => db,
     adapters,
+    payoutProvider,
+    // No silent fallback: a test that names a provider must inject its adapter,
+    // or the seam is not actually being exercised.
+    getPayoutAdapter: () => {
+      const adapter = adapters[payoutProvider];
+      if (!adapter) throw new Error(`createTestCtx: no adapter "${payoutProvider}" in injected adapters`);
+      return adapter;
+    },
     recipientRegistry,
     emitEvent: emitEvent || (async (event) => { events.push(event); }),
     getLogger: () => logger,

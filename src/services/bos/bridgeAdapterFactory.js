@@ -75,16 +75,15 @@ export function getBreetAdapter() {
 }
 
 /**
- * Payout provider selection — CONFIG LAYER ONLY.
+ * Payout provider selection and the payout-leg capability seam.
  *
- * `PAYOUT_PROVIDER` names the adapter the context is built with. It defaults to
- * 'yellowcard' and the default is the only path the pipeline executes today.
+ * `PAYOUT_PROVIDER` names the provider for this process (default yellowcard).
+ * The payout leg resolves its adapter through this seam instead of reaching for
+ * `ctx.adapters.yellowcard` directly, so a provider can be swapped without
+ * editing every call site (backlog P-1, staged C1–C4).
  *
- * Setting `PAYOUT_PROVIDER=flutterwave` changes which adapter is published on
- * the context; it does NOT change the payout leg, because that leg is hard-wired
- * to `ctx.adapters.yellowcard` at 14 sites. Resolving the provider per corridor
- * at runtime is backlog **P-1** and needs explicit re-authorization (it touches
- * the state machine's action layer and the evidence chain).
+ * One active provider per process: `ctx.payoutProvider` is fixed at init. Per
+ * corridor selection is a later change.
  *
  * Read at call time, not module scope, so it is testable without cache-busted
  * re-imports.
@@ -104,6 +103,115 @@ export function getPayoutAdapter() {
   if (p === 'flutterwave') return flutterwaveAdapter;
   if (p === 'breet') return breetAdapter;
   return yellowcardAdapter;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payout-leg capability seam
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Which payout legs each provider can actually serve. A provider absent from this
+ * map has no declared capability.
+ *
+ * `flutterwave` is deliberately empty: flutterwaveAdapter.js disburses USDC to a
+ * wallet, not NGN to a bank account (F-1). Publishing the adapter must never make
+ * the payout leg routable to it.
+ *
+ * `breet` is declared but UNVERIFIED — the payload shape is confirmed later in
+ * C5; the capability claim itself is still structural only.
+ */
+export const PAYOUT_LEGS = Object.freeze({
+  yellowcard: Object.freeze(['ngn_bank']),
+  breet: Object.freeze(['ngn_bank']),
+  flutterwave: Object.freeze([]),
+});
+
+export const PAYOUT_LEG_NGN_BANK = 'ngn_bank';
+
+/**
+ * A provider that was selected but cannot serve the requested payout leg.
+ * Thrown at startup and at resolution time — never swallowed into "advance".
+ */
+export class ProviderCapabilityError extends Error {
+  constructor(provider, leg, detail) {
+    super(
+      `Payout provider "${provider}" cannot serve the ${leg} payout leg` +
+        (detail ? `: ${detail}` : '')
+    );
+    this.name = 'ProviderCapabilityError';
+    this.code = 'PROVIDER_CAPABILITY_UNSUPPORTED';
+    this.provider = provider;
+    this.leg = leg;
+  }
+}
+
+/**
+ * Normalize a provider name to one the seam can resolve.
+ *
+ * Unknown values fall back to 'yellowcard', matching getPayoutAdapter() — pinned
+ * by flutterwave-provider-config.test.js:58. Name and adapter must never diverge:
+ * that is exactly the silent-routing failure P-1 exists to prevent.
+ *
+ * @param {string} [value] provider name; defaults to getPayoutProvider()
+ * @returns {string} a key of PAYOUT_LEGS
+ */
+export function resolvePayoutProvider(value = getPayoutProvider()) {
+  const name = String(value ?? '').trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PAYOUT_LEGS, name) ? name : 'yellowcard';
+}
+
+/**
+ * @returns {boolean} whether the provider (after normalization) can serve the leg
+ */
+export function supportsPayoutLeg(provider, leg = PAYOUT_LEG_NGN_BANK) {
+  return PAYOUT_LEGS[resolvePayoutProvider(provider)].includes(leg);
+}
+
+/**
+ * Fail closed unless the provider can serve the leg.
+ * @returns {string} the normalized provider name
+ * @throws {ProviderCapabilityError}
+ */
+export function assertPayoutLeg(provider, leg = PAYOUT_LEG_NGN_BANK) {
+  const name = resolvePayoutProvider(provider);
+  if (!PAYOUT_LEGS[name].includes(leg)) {
+    throw new ProviderCapabilityError(name, leg);
+  }
+  return name;
+}
+
+/**
+ * Startup gate: the configured provider must be able to serve the NGN bank leg.
+ * Called by ensureInit() before any adapter is published.
+ * @returns {string} the normalized provider name
+ * @throws {ProviderCapabilityError}
+ */
+export function assertPayoutProviderCapable(provider = getPayoutProvider()) {
+  return assertPayoutLeg(provider, PAYOUT_LEG_NGN_BANK);
+}
+
+/**
+ * Resolve the payout adapter for a ctx through the seam.
+ *
+ * Precedence: ctx.getPayoutAdapter() (production and test contexts both supply
+ * it), then ctx.adapters[provider], and never a silent fallback to yellowcard
+ * when the ctx named a provider that has no published adapter.
+ *
+ * @param {Object} ctx
+ * @returns {Object} the payout adapter
+ * @throws {ProviderCapabilityError} when the provider cannot serve the leg
+ */
+export function resolvePayoutAdapter(ctx) {
+  const provider = assertPayoutLeg(ctx?.payoutProvider, PAYOUT_LEG_NGN_BANK);
+  const adapter =
+    typeof ctx?.getPayoutAdapter === 'function'
+      ? ctx.getPayoutAdapter()
+      : ctx?.adapters?.[provider];
+
+  if (!adapter) {
+    throw new Error(`No payout adapter published for provider "${provider}"`);
+  }
+  return adapter;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,4 +255,12 @@ export default {
   getBreetAdapter,
   getPayoutProvider,
   getPayoutAdapter,
+  PAYOUT_LEGS,
+  PAYOUT_LEG_NGN_BANK,
+  ProviderCapabilityError,
+  resolvePayoutProvider,
+  supportsPayoutLeg,
+  assertPayoutLeg,
+  assertPayoutProviderCapable,
+  resolvePayoutAdapter,
 };

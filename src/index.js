@@ -6,7 +6,15 @@ import webhooksRouter from './routes/webhooks.js';
 import disbursementsRouter from './routes/disbursements.js';
 import disbursementsV1Router from './routes/disbursementsV1.js';
 import { initDb, getDb } from './database.js';
-import { getXReserveAdapter, getStacksAdapter, getYellowCardAdapter, getFlutterwaveAdapter, getBreetAdapter } from './services/bos/bridgeAdapterFactory.js';
+import {
+  getXReserveAdapter,
+  getStacksAdapter,
+  getYellowCardAdapter,
+  getFlutterwaveAdapter,
+  getBreetAdapter,
+  getPayoutAdapter,
+  assertPayoutProviderCapable,
+} from './services/bos/bridgeAdapterFactory.js';
 import monitorJob from './services/bos/monitoring/monitorJob.js';
 import * as stuckReaper from './services/bos/stuckStateReaper.js';
 import * as reconciliationWorker from './services/bos/reconciliationWorker.js';
@@ -32,6 +40,11 @@ app.get('/warmup', (req, res) => {
 let _initialized = false;
 async function ensureInit() {
   if (_initialized) return;
+
+  // Fail closed before anything is published: a provider that cannot serve the
+  // NGN bank payout leg must not boot (e.g. PAYOUT_PROVIDER=flutterwave).
+  const payoutProvider = assertPayoutProviderCapable();
+
   _initialized = true;
 
   await initDb();
@@ -39,11 +52,10 @@ async function ensureInit() {
   const adapters = {
     stacks: getStacksAdapter(),
     xreserve: getXReserveAdapter(),
-    // The payout leg reads ctx.adapters.yellowcard at 14 hard-coded sites, so
-    // `flutterwave` is published but NOT consumed — provider routing is backlog
-    // P-1. And its documented body is a USDC-to-wallet disbursement, not an NGN
-    // bank payout: see flutterwaveAdapter.js and
-    // docs/flutterwave-api-reference.md §0.
+    // The payout seam resolves ctx.adapters[payoutProvider]; call sites are
+    // migrated in C2–C4. `flutterwave` stays published but is refused by the
+    // capability map (its body is a USDC-to-wallet disbursement, not an NGN bank
+    // payout: see flutterwaveAdapter.js and docs/flutterwave-api-reference.md §0).
         yellowcard: getYellowCardAdapter(),
     breet: getBreetAdapter(),
   };
@@ -53,6 +65,9 @@ async function ensureInit() {
   const bosCtx = {
     getDb: () => getDb(),
     adapters,
+    // The payout leg resolves through this seam instead of adapters.yellowcard.
+    payoutProvider,
+    getPayoutAdapter,
     recipientRegistry,
     emitEvent: async (event) => {
       let db;
